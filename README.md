@@ -1,4 +1,6 @@
-This sample application was constructed after hours as an exercise to understand how video data streams can be sent an quadcopter camera to a web browser.  
+# Introduction
+
+This sample application was constructed an exercise to understand how video data streams can be sent an UAV quadcopter camera to a web browser.  
 This [page](http://impleotv.com/2017/02/17/klv-encoded-metadata-in-stanag-4609-streams/) provides a good primer on [KLV](https://en.wikipedia.org/wiki/KLV) encoded data in [STANAG 4609](http://www.gwg.nga.mil/misb/docs/nato_docs/STANAG_4609_Ed3.pdf).
 
 Once we can read incoming metadata in the browser, we can do interesting things such as displaying our UAV in [Cesium](https://github.com/AnalyticalGraphicsInc/cesium), which is a JavaScript library for creating WebGL globes and time-dynamic content (i.e, a flying SkyRanger!)
@@ -18,7 +20,6 @@ To establish a stream from the Flyer to the websocket server, we [map](https://t
 ```bash
 ffmpeg -i rtsp://{camera_source_url} -map: 0:0 -map 0:1 -f mpegts -codec:v mpeg1video -b:v 800k -r 24 -s 800:600 http://127.0.0.1:8081/secretkey
 ```
-This is obviously using a hd-zoom stream, but we could extend this to other payload RTSP feeds.
 
 As noted in the JSMpeg [docs](https://github.com/phoboslab/jsmpeg/blob/master/src/jsmpeg.js), the [player](app_url/src/jsmpeg/player.js#L46) sets up the connections between the source, demuxer, decoders, and renderer. In order to extend JSMpeg to accept a data stream we subscribe the demuxer to the correct stream identifier (per the STANAG spec it is _0xBD_), implement the decoder, and then send the resultant data to the renderer. 
 
