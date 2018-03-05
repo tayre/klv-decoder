@@ -15,7 +15,7 @@ JSMpeg comes with a websocket server, that accepts a mpeg-ts source and serves i
 
 We also have a small node webserver that [is packaged with Cesium](https://github.com/AnalyticalGraphicsInc/cesium/blob/master/server.js) to serve static assets. This server nicely handles CORS requests to other domains (such as map or terrain providers). Nginx or any other webserver could easily be used instead.
 
-To establish a stream from the Flyer to the websocket server, we [map](https://trac.ffmpeg.org/wiki/Map) our video and data feeds. Since JSMpeg only supports playback of mpeg1, we need to be explicit in our codec choice as well.
+To establish a stream from the camera to the websocket server, we [map](https://trac.ffmpeg.org/wiki/Map) our video and data feeds. Since JSMpeg only supports playback of mpeg1, we need to be explicit in our codec choice as well.
 
 ```bash
 ffmpeg -i rtsp://{camera_source_url} -map: 0:0 -map 0:1 -f mpegts -codec:v mpeg1video -b:v 800k -r 24 -s 800:600 http://127.0.0.1:8081/secretkey
