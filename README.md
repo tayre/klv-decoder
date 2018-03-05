@@ -85,8 +85,7 @@ The frame rate here is slightly reduced because of the screen recorder utilized.
 
 ### Future Work
 - Extend this application to include increased FOV (essentially decrease the focal length), so we can have more situational awareness. Currently we centre the video, and perform CSS clipping around the video in order to see the surrounding scene.  In this [example](app/www/video-test.html) we show how to use canvas data as an image material, in order to have the video included in the 3d space. While this works, the frame rate drops considerably.
-- We need to manually enable STANAG metadata in MCS in order to get our output stream. It would be sweet to do this programmatically.
-- Full offline support: we need an Internet connection to provide map and terrain data. Cesium does support offline data, so we could potentially use the MCS tile sets. 
+- Full offline support: we need an Internet connection to provide map and terrain data. Cesium does support offline data.
 - It would be interesting to add additional information/visuals in Cesium. e.g., camera targets, acoustic footprint, terrain sections, etc.
 - This code was purely written for fun and learning about STANAG 4609 - so it is by no means production quality :)
 
