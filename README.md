@@ -1,7 +1,6 @@
 # Introduction
 
-This sample application was constructed an exercise to understand how video data streams can be sent an UAV quadcopter camera to a web browser.  
-This [page](http://impleotv.com/2017/02/17/klv-encoded-metadata-in-stanag-4609-streams/) provides a good primer on [KLV](https://en.wikipedia.org/wiki/KLV) encoded data in [STANAG 4609](http://www.gwg.nga.mil/misb/docs/nato_docs/STANAG_4609_Ed3.pdf).
+This sample application was constructed an exercise to understand how video data streams can be sent an UAV quadcopter camera to a web browser. This [page](http://impleotv.com/2017/02/17/klv-encoded-metadata-in-stanag-4609-streams/) provides a good primer on [KLV](https://en.wikipedia.org/wiki/KLV) encoded data in [STANAG 4609](http://www.gwg.nga.mil/misb/docs/nato_docs/STANAG_4609_Ed3.pdf).
 
 Once we can read incoming metadata in the browser, we can do interesting things such as displaying our UAV in [Cesium](https://github.com/AnalyticalGraphicsInc/cesium), which is a JavaScript library for creating WebGL globes and time-dynamic content (i.e, a flying SkyRanger!)
 
