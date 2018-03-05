@@ -35,11 +35,11 @@ The decoder is implemented by [metadata.js](app/src/jsmpeg/metadata.js). The bas
 
 The key reference here is [MISB STANDARD 0601.8](https://upload.wikimedia.org/wikipedia/commons/1/19/MISB_Standard_0601.pdf) (the UAS LDS standard) which lists 95 KLV metadata elements, a subset of which STANAG 4609 requires. Importantly, floating point values (for example latitude/longitude points) are mapped to integers, so we must [convert ](app/src/jsmpeg/metadata.js#L99) the incoming values to a more useful realworld datum. 
 
-<img src="/uploads/c271cc91ad8b31368311e3a3dd238f71/example_packet.png" width="300">
+![Example Packet](images/example_packet.png)
 
 Each length in the KLV set is [BER](https://en.wikipedia.org/wiki/X.690#BER_encoding) encoded. In practice it looks like our KLV encoder uses long form encoding for the UAS metadata payload length, and short encoding for each metadata item. Regardless, for demonstration purposes we [read the most significant bit](app/src/jsmpeg/metadata.js#L57) of the payload length to determine the encoding scheme.
 
-<img src="/uploads/c22adf234ba53aca2cb5e446a99ca3da/example_metadata.png" width="300">
+![Example Packet](images/example_metadata.png)
 
 A 16-bit block character checksum appears to be used for CRC. Validation is done by a running 16-bit sum through the entire LDS packet starting with the 16 byte local data set key and ending with summing the 2 byte length field of the checksum data item (but not its value). A sample implementation is given in MISB 0601.8, which we implement [here](app/src/jsmpeg/metadata.js#L299). Efficiency could be gained if we didn't loop twice over the packet, but rather accumulated the sum as the packet is processed.
 
