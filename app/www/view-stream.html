@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>KLV Decode Test</title>
+	<script type="text/javascript" src="js/dist/jsmpeg.min.js"></script>
+	<style type="text/css">
+		#video-canvas { width: 256px; }
+		#klv-output { font-family: monospace; text-align: left; }
+	</style>
+</head>
+<body>
+	<canvas id="video-canvas"></canvas>
+	<div id = "klv-output"></div>
+	<div id = 'output'></div>
+	<script type="text/javascript">
+		var canvas = document.getElementById('video-canvas');
+		var klv = document.getElementById('klv-output')
+		var url = 'ws://'+document.location.hostname+':8082/';
+		var player = new JSMpeg.Player(url, {canvas: canvas, audio: false, streaming: true, klvelement: klv});
+		klv.addEventListener('klv', function (e) { //console.info(e.detail) 
+		}, false);
+	</script>
+</body>
+</html>

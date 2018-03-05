@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <script src="cesium/Cesium/Cesium.js"></script>
+    <script src="cesium/Cesium-nav/viewerCesiumNavigationMixin.js"></script>
+
+    <script src="js/dist/jquery+bootstrap.min.js"></script>
+    <script src="js/dist/jsmpeg.min.js"></script>
+    <script src="js/dist/main.min.js"></script>
+
+    <link href="css/bootstrap.min.css" rel="stylesheet" >
+    <link href="cesium/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+    <link href = "css/main.css" rel = "stylesheet">
+    <title>Live Cesium Telemetry Demo</title>
+</head>
+<body>
+    <div id="tools">
+        <div id="camera_options" class="btn-group" data-toggle="buttons">
+            <label class="btn btn-primary btn-sm"><input type="radio" name="options" id="fpv_cam" autocomplete="off" checked>FPV</label>
+            <label class="btn btn-primary btn-sm"><input type="radio" name="options" id="follow_cam" autocomplete="off">Follow</label>
+            <label class="btn btn-primary btn-sm active"><input type="radio" name="options" id="free_cam" autocomplete="off">Free</label>
+        </div>
+
+        <div id="basemap_options" class="btn-group" data-toggle="buttons">
+            <label class="btn btn-primary active btn-sm"><input type="radio" name="options" id="sat_base_layer" autocomplete="off" checked>Satellite</label>
+            <label class="btn btn-primary  btn-sm"><input type="radio" name="options" id="street_base_layer" autocomplete="off">ArcGIS Street</label>
+            <label class="btn btn-primary btn-sm"><input type="radio" name="options" id="open_street_base_layer" autocomplete="off">OSM Street</label>
+        </div>
+        <div id="layer_options" class="btn-group" data-toggle="buttons">
+            <label class="btn btn-primary btn-sm"><input id="weather_checkbox" type="checkbox" autocomplete="off">Weather</label>
+            <label class="btn btn-primary btn-sm"><input id="grid_checkbox" type="checkbox" autocomplete="off">Grid</label>
+            <label class="btn btn-primary btn-sm active"><input id="terrain_checkbox" type="checkbox" autocomplete="off">Terrain</label>
+        </div>
+        <div id="video_options" class="btn-group" data-toggle="buttons">
+            <label class="btn btn-primary btn-sm active"><input id="showvideo_checkbox" type="checkbox" autocomplete="off">Show Video</label>
+            <label class="btn btn-primary btn-sm"><input id="centrevideo_checkbox" type="checkbox" autocomplete="off">Center Video</label>
+        </div>
+    </div>
+    <div id="misc_tools">
+        <button type="button" class="btn btn-primary btn-sm" id = "zoom_to_flyer">Focus Flyer</button>
+    </div>
+    <div id="cesiumContainer" class="fullSize"></div>
+    <canvas id="video-canvas"></canvas>
+    <div id="telemetry"></div>
+    <div id = "klv-output"><div>
+</body>
+</html>

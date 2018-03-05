@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <script src="http://cdn.dashjs.org/latest/dash.all.min.js"></script>
+
+    <script src="cesium/Cesium/Cesium.js"></script>
+    <script src="cesium/Cesium-nav/viewerCesiumNavigationMixin.js"></script>
+
+    <script src="js/dist/jquery+bootstrap.min.js"></script>
+    <script src="js/dist/jsmpeg.min.js"></script>
+    <script src="js/dist/main.min.js"></script>
+
+    <link href="css/bootstrap.min.css" rel="stylesheet" >
+    <link href="cesium/Cesium/Widgets/widgets.css" rel="stylesheet">
+    
+    <link href="http://vjs.zencdn.net/5.19.2/video-js.css" rel="stylesheet">
+    
+    <link href = "css/main.css" rel = "stylesheet">
+    <title>Video Image Material Test</title>
+</head>
+<body>
+
+    <div id="cesiumContainer" class="fullSize"></div>
+    <div id="telemetry">test</div>
+    <canvas id="video-canvas"></canvas>
+
+    <script type="text/javascript">
+        var canvas = document.getElementById('video-canvas');
+        var url = 'ws://' + document.location.hostname + ':8082/';
+        var player = new JSMpeg.Player(url, {
+            audio: false,
+            canvas: canvas
+        });
+
+        var CesiumViewer = new Cesium.Viewer('cesiumContainer', {
+            timeline: false,
+            animation: false,
+            baseLayerPicker: false,
+            vrButton: true,
+            homeButton: false,
+            shadows: true,
+            navigationHelpButton: false,
+            sceneModePicker: false,
+            geocoder: false
+        });
+
+
+        var position = Cesium.Cartesian3.fromDegrees(-123.0744619, 44.0503706, -20);
+        var heading = Cesium.Math.toRadians(0);
+        var pitch = Cesium.Math.toRadians(0);
+        var roll = Cesium.Math.toRadians(-90);
+        var hpr = new Cesium.HeadingPitchRoll(heading, pitch, roll);
+        var quant = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
+
+        var canvas = document.getElementById('video-canvas');
+        var rectangle = CesiumViewer.entities.add({
+            position: position,
+            orientation: quant,
+            box: {
+                dimensions: new Cesium.Cartesian3(2000, 1, 1000),
+                alpha: 0.9,
+                material: new Cesium.ImageMaterialProperty({
+                    transparent: false,
+                    image: new Cesium.CallbackProperty(function(time, result) {
+                        return canvas.toDataURL()
+                    }, true)
+                })
+            }
+        });
+
+        CesiumViewer.trackedEntity = rectangle;
+
+        CesiumViewer.scene.debugShowFramesPerSecond = true;
+
+        function addStreets() {
+
+            var layers = CesiumViewer.scene.imageryLayers;
+            CURRENT_BASE_LAYER = layers.addImageryProvider(new Cesium.ArcGisMapServerImageryProvider({
+                url: 'http://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer'
+            }));
+
+            CURRENT_BASE_LAYER.alpha = 1
+
+        }
+
+        addStreets();
+
+    </script>
+    <script src="http://vjs.zencdn.net/5.19.2/video.js"></script>
+</body>
+</html>

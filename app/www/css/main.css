@@ -1,0 +1,75 @@
+ html, body, #cesiumContainer {
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+}
+
+#tools {
+	position: absolute;
+	z-index: 100;
+	top: 0;
+}
+
+#misc_tools {
+	position: absolute;
+	z-index: 100;
+	top: 0;
+	right: 0;
+}
+
+#video-canvas {
+	background: white;
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 250px;
+}
+
+#telemetry {
+	font-family: monospace;
+	background: rgba(40,40,40,0.7);
+	position: fixed;
+	left: 50%;
+	bottom: 0;
+	color: #de3;
+	padding: 5px;
+	border-radius: 5px;
+	border: 1px solid #444;
+	text-align: left;
+	transform: translate(-50%, 0%);
+}
+
+#video-canvas.centre {
+	opacity: 1;
+	height: 100%;
+	width: 100%;
+	top: 50%;
+	left: 50%;
+	-webkit-transform: translate(-50%, -50%);
+	transform: translate(-50%, -50%);*/
+	-webkit-clip-path: polygon(25% 25%, 75% 25%, 75% 75%, 25% 75%);
+	clip-path: polygon(25% 25%, 75% 25%, 75% 75%, 25% 75%);
+}
+
+#video-canvas.hide {
+	visibility: hidden;
+}
+
+.cesium-widget-credits {
+	display: none !important;
+}
+
+#klv-output {
+	display: none; /*remove to see raw telemetry*/
+	background: white;
+	position: fixed;
+	top: 0;
+	right: 0;
+	width: 500px;
+	height: 200px;
+	font-family: monospace;
+	font-size: 12px;
+	overflow: auto;
+}
