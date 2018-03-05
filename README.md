@@ -21,7 +21,7 @@ To establish a stream from the Flyer to the websocket server, we [map](https://t
 ffmpeg -i rtsp://{camera_source_url} -map: 0:0 -map 0:1 -f mpegts -codec:v mpeg1video -b:v 800k -r 24 -s 800:600 http://127.0.0.1:8081/secretkey
 ```
 
-As noted in the JSMpeg [docs](https://github.com/phoboslab/jsmpeg/blob/master/src/jsmpeg.js), the [player](app_url/src/jsmpeg/player.js#L46) sets up the connections between the source, demuxer, decoders, and renderer. In order to extend JSMpeg to accept a data stream we subscribe the demuxer to the correct stream identifier (per the STANAG spec it is _0xBD_), implement the decoder, and then send the resultant data to the renderer. 
+As noted in the JSMpeg [docs](https://github.com/phoboslab/jsmpeg/blob/master/src/jsmpeg.js), the [player](app/src/jsmpeg/player.js#L46) sets up the connections between the source, demuxer, decoders, and renderer. In order to extend JSMpeg to accept a data stream we subscribe the demuxer to the correct stream identifier (per the STANAG spec it is _0xBD_), implement the decoder, and then send the resultant data to the renderer. 
 
 ```javascript
 var data = new JSMpeg.Decoder.Metadata();
@@ -33,18 +33,18 @@ data.connect(klvOut);
 ### Decoder
 The decoder is implemented by [metadata.js](app/src/jsmpeg/metadata.js). The basic flow of control is to look for the 16-byte universal UAS LDS key within the bit stream, and once found, start reading the remainder of the LDS packet. The payload boundaries are easily checked, since they begin with a Unix timestamp, and end with a checksum. Of note, in JavaScript, the max integer is [2^53](http://ecma262-5.com/ELS5_HTML.htm#Section_8.5), so we need to use [BigInteger.js](https://www.npmjs.com/package/big-integer) in order to handle 8 byte timestamps, which are always the first KLV set within the payload.
 
-The key reference here is [MISB STANDARD 0601.8](https://upload.wikimedia.org/wikipedia/commons/1/19/MISB_Standard_0601.pdf) (the UAS LDS standard) which lists 95 KLV metadata elements, a subset of which STANAG 4609 requires. Importantly, floating point values (for example latitude/longitude points) are mapped to integers, so we must [convert ](app_url/src/jsmpeg/metadata.js#L99) the incoming values to a more useful realworld datum. 
+The key reference here is [MISB STANDARD 0601.8](https://upload.wikimedia.org/wikipedia/commons/1/19/MISB_Standard_0601.pdf) (the UAS LDS standard) which lists 95 KLV metadata elements, a subset of which STANAG 4609 requires. Importantly, floating point values (for example latitude/longitude points) are mapped to integers, so we must [convert ](app/src/jsmpeg/metadata.js#L99) the incoming values to a more useful realworld datum. 
 
 <img src="/uploads/c271cc91ad8b31368311e3a3dd238f71/example_packet.png" width="300">
 
-Each length in the KLV set is [BER](https://en.wikipedia.org/wiki/X.690#BER_encoding) encoded. In practice it looks like our KLV encoder uses long form encoding for the UAS metadata payload length, and short encoding for each metadata item. Regardless, for demonstration purposes we [read the most significant bit](app_url/src/jsmpeg/metadata.js#L57) of the payload length to determine the encoding scheme.
+Each length in the KLV set is [BER](https://en.wikipedia.org/wiki/X.690#BER_encoding) encoded. In practice it looks like our KLV encoder uses long form encoding for the UAS metadata payload length, and short encoding for each metadata item. Regardless, for demonstration purposes we [read the most significant bit](app/src/jsmpeg/metadata.js#L57) of the payload length to determine the encoding scheme.
 
 <img src="/uploads/c22adf234ba53aca2cb5e446a99ca3da/example_metadata.png" width="300">
 
-A 16-bit block character checksum appears to be used for CRC. Validation is done by a running 16-bit sum through the entire LDS packet starting with the 16 byte local data set key and ending with summing the 2 byte length field of the checksum data item (but not its value). A sample implementation is given in MISB 0601.8, which we implement [here](app_url/src/jsmpeg/metadata.js#L299). Efficiency could be gained if we didn't loop twice over the packet, but rather accumulated the sum as the packet is processed.
+A 16-bit block character checksum appears to be used for CRC. Validation is done by a running 16-bit sum through the entire LDS packet starting with the 16 byte local data set key and ending with summing the 2 byte length field of the checksum data item (but not its value). A sample implementation is given in MISB 0601.8, which we implement [here](app/src/jsmpeg/metadata.js#L299). Efficiency could be gained if we didn't loop twice over the packet, but rather accumulated the sum as the packet is processed.
 
 ### Renderer
-The renderer is implemented by [klvoutput.js](app_url/src/jsmpeg/klvoutput.js). It accepts the JSON object constructed by the decoder, and emits a [CustomEvent](https://developer.mozilla.org/en/docs/Web/API/CustomEvent) .
+The renderer is implemented by [klvoutput.js](app/src/jsmpeg/klvoutput.js). It accepts the JSON object constructed by the decoder, and emits a [CustomEvent](https://developer.mozilla.org/en/docs/Web/API/CustomEvent) .
 ```javascript
 this.element.dispatchEvent(new CustomEvent('klv', { "detail": data}));
 ```
@@ -55,7 +55,7 @@ klv.addEventListener('klv', _callback_);
 ```
 
 ### Cesium
-Once in Cesium, and listening for custom events, we [update](app_url/src/uav/main.js#L68) our HTML telemetry and camera or model position. There are two modes that are currently implemented: a FPV mode and track entity mode. 
+Once in Cesium, and listening for custom events, we [update](app/src/uav/main.js#L68) our HTML telemetry and camera or model position. There are two modes that are currently implemented: a FPV mode and track entity mode. 
 
 In FPV mode we take the sensor latitude, longitude, height, roll, pitch and yaw, calling [flyTo](https://cesiumjs.org/Cesium/Build/Documentation/Camera.html#flyTo) with the provided destination and orientation. In track entity mode, we set the position and orientation of a model, and follow it with [trackedEntity](https://cesiumjs.org/Cesium/Build/Documentation/Viewer.html#trackedEntity). Unlike _flyTo_, which has nicely animated interpolation, we must use [sampled properties](https://cesiumjs.org/Cesium/Build/Documentation/SampledProperty.html) when tracking the model, in order to simulate the effect of motion.  In reality we do not know the current velocity or acceleration of the aircraft, so this is really just an approximation of the aircraft's flight path. We also only receive metadata at a rate of 1Hz. Increasing this frequency could provide smoother results.
 
@@ -85,7 +85,7 @@ The frame rate here is slightly reduced because of the screen recorder utilized.
 [![Flight Test 2](https://img.youtube.com/vi/LHkXWjpnZeY/0.jpg)](https://www.youtube.com/watch?v=LHkXWjpnZeY)
 
 ### Future Work
-- Extend this application to include increased FOV (essentially decrease the focal length), so we can have more situational awareness. Currently we centre the video, and perform CSS clipping around the video in order to see the surrounding scene.  In this [example](app_url/www/video-test.html) we show how to use canvas data as an image material, in order to have the video included in the 3d space. While this works, the frame rate drops considerably.
+- Extend this application to include increased FOV (essentially decrease the focal length), so we can have more situational awareness. Currently we centre the video, and perform CSS clipping around the video in order to see the surrounding scene.  In this [example](app/www/video-test.html) we show how to use canvas data as an image material, in order to have the video included in the 3d space. While this works, the frame rate drops considerably.
 - We need to manually enable STANAG metadata in MCS in order to get our output stream. It would be sweet to do this programmatically.
 - Full offline support: we need an Internet connection to provide map and terrain data. Cesium does support offline data, so we could potentially use the MCS tile sets. 
 - It would be interesting to add additional information/visuals in Cesium. e.g., camera targets, acoustic footprint, terrain sections, etc.
