@@ -4,7 +4,7 @@ This sample application was constructed an exercise to understand how video data
 
 Once we can read incoming metadata in the browser, we can do interesting things such as displaying our UAV in [Cesium](https://github.com/AnalyticalGraphicsInc/cesium), which is a JavaScript library for creating WebGL globes and time-dynamic content (i.e, a flying quadcopter!)
 
-In order for this to be compelling we need to minimize video latency from the base station to the browser.  The [JSMpeg](https://github.com/phoboslab/jsmpeg) project does a lot of the heavy lifting for getting the mpeg transport stream to the client, and rendering the video (and mp2 audio if present). We extend this project by adding a KLV decoder, and a simple rendering of the decoded data as JSON. 
+In order for this to be compelling we need to minimize video latency from the video source to the browser.  The [JSMpeg](https://github.com/phoboslab/jsmpeg) project does a lot of the heavy lifting for getting the mpeg transport stream to the client, and rendering the video (and mp2 audio if present). We extend this project by adding a KLV decoder, and a simple rendering of the decoded data as JSON. 
 
 TL;DR jump to the [demo videos](#demoarea).
 
