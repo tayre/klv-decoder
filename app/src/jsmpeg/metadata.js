@@ -1,5 +1,5 @@
 /*
- * @author Tom Ayre <tayre@aeryon.com>
+ * @author Tom Ayre <ayre.tom+github@gmail.com>
  */
 JSMpeg.Decoder.Metadata = (function() {
 	"use strict";
