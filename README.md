@@ -4,7 +4,7 @@ This sample application was constructed an exercise to understand how video data
 
 Once we can read incoming metadata in the browser, we can do interesting things such as displaying our UAV in [Cesium](https://github.com/AnalyticalGraphicsInc/cesium), which is a JavaScript library for creating WebGL globes and time-dynamic content (i.e, a flying quadcopter!)
 
-In order for this to be compelling we need to minimize video latency from the video source to the browser.  The [JSMpeg](https://github.com/phoboslab/jsmpeg) project does a lot of the heavy lifting for getting the mpeg transport stream to the client, and rendering the video (and mp2 audio if present). We extend this project by adding a KLV decoder, and a simple rendering of the decoded data as JSON. 
+In order for this to be compelling we need to minimize video latency from the video source to the browser.  The [JSMpeg](https://github.com/phoboslab/jsmpeg) project does a lot of the heavy lifting for getting the mpeg transport stream to the client, and rendering the video (and mp2 audio if present). We extend this project by adding a KLV decoder, and a simple rendering of the decoded data as JSON.
 
 TL;DR jump to the [demo videos](#demoarea).
 
@@ -20,7 +20,7 @@ To establish a stream from the camera to the websocket server, we [map](https://
 ffmpeg -i rtsp://{camera_source_url} -map: 0:0 -map 0:1 -f mpegts -codec:v mpeg1video -b:v 800k -r 24 -s 800:600 http://127.0.0.1:8081/secretkey
 ```
 
-As noted in the JSMpeg [docs](https://github.com/phoboslab/jsmpeg/blob/master/src/jsmpeg.js), the [player](app/src/jsmpeg/player.js#L46) sets up the connections between the source, demuxer, decoders, and renderer. In order to extend JSMpeg to accept a data stream we subscribe the demuxer to the correct stream identifier (per the STANAG spec it is _0xBD_), implement the decoder, and then send the resultant data to the renderer. 
+As noted in the JSMpeg [docs](https://github.com/phoboslab/jsmpeg/blob/master/src/jsmpeg.js), the [player](app/src/jsmpeg/player.js#L46) sets up the connections between the source, demuxer, decoders, and renderer. In order to extend JSMpeg to accept a data stream we subscribe the demuxer to the correct stream identifier (per the STANAG spec it is _0xBD_), implement the decoder, and then send the resultant data to the renderer.
 
 ```javascript
 var data = new JSMpeg.Decoder.Metadata();
@@ -28,11 +28,11 @@ this.demuxer.connect(JSMpeg.Demuxer.TS.STREAM.PRIVATE_1, data);
 var klvOut = new JSMpeg.DataOutput.KLV();
 data.connect(klvOut);
 ```
-# Details 
+# Details
 ### Decoder
 The decoder is implemented by [metadata.js](app/src/jsmpeg/metadata.js). The basic flow of control is to look for the 16-byte universal UAS LDS key within the bit stream, and once found, start reading the remainder of the LDS packet. The payload boundaries are easily checked, since they begin with a Unix timestamp, and end with a checksum. Of note, in JavaScript, the max integer is [2^53](http://ecma262-5.com/ELS5_HTML.htm#Section_8.5), so we need to use [BigInteger.js](https://www.npmjs.com/package/big-integer) in order to handle 8 byte timestamps, which are always the first KLV set within the payload.
 
-The key reference here is [MISB STANDARD 0601.8](https://upload.wikimedia.org/wikipedia/commons/1/19/MISB_Standard_0601.pdf) (the UAS LDS standard) which lists 95 KLV metadata elements, a subset of which STANAG 4609 requires. Importantly, floating point values (for example latitude/longitude points) are mapped to integers, so we must [convert ](app/src/jsmpeg/metadata.js#L99) the incoming values to a more useful realworld datum. 
+The key reference here is [MISB STANDARD 0601.8](https://upload.wikimedia.org/wikipedia/commons/1/19/MISB_Standard_0601.pdf) (the UAS LDS standard) which lists 95 KLV metadata elements, a subset of which STANAG 4609 requires. Importantly, floating point values (for example latitude/longitude points) are mapped to integers, so we must [convert ](app/src/jsmpeg/metadata.js#L99) the incoming values to a more useful realworld datum.
 
 ![Example Packet](images/example_packet.png)
 
@@ -47,18 +47,18 @@ The renderer is implemented by [klvoutput.js](app/src/jsmpeg/klvoutput.js). It a
 ```javascript
 this.element.dispatchEvent(new CustomEvent('klv', { "detail": data}));
 ```
-Interested parties can then listen for this event. This is how we hook up JSMpeg's decoded data to Cesium. 
+Interested parties can then listen for this event. This is how we hook up JSMpeg's decoded data to Cesium.
 ```javascript
 var klv = document.getElementById('somelementid');
 klv.addEventListener('klv', _callback_);
 ```
 
 ### Cesium
-Once in Cesium, and listening for custom events, we [update](app/src/uav/main.js#L68) our HTML telemetry and camera or model position. There are two modes that are currently implemented: a FPV mode and track entity mode. 
+Once in Cesium, and listening for custom events, we [update](app/src/uav/main.js#L68) our HTML telemetry and camera or model position. There are two modes that are currently implemented: a FPV mode and track entity mode.
 
 In FPV mode we take the sensor latitude, longitude, height, roll, pitch and yaw, calling [flyTo](https://cesiumjs.org/Cesium/Build/Documentation/Camera.html#flyTo) with the provided destination and orientation. In track entity mode, we set the position and orientation of a model, and follow it with [trackedEntity](https://cesiumjs.org/Cesium/Build/Documentation/Viewer.html#trackedEntity). Unlike _flyTo_, which has nicely animated interpolation, we must use [sampled properties](https://cesiumjs.org/Cesium/Build/Documentation/SampledProperty.html) when tracking the model, in order to simulate the effect of motion.  In reality we do not know the current velocity or acceleration of the aircraft, so this is really just an approximation of the aircraft's flight path. We also only receive metadata at a rate of 1Hz. Increasing this frequency could provide smoother results.
 
-A note on altitude: per STANAG 4609, tag 75 should provide the height above the [ellipsoid](https://support.pix4d.com/hc/en-us/articles/202559869-Orthometric-and-Ellipsoidal-Height#gsc.tab=0) (HAE), but instead it appears we are only getting sensor true altitude (tag 15) measured from MSL. Cesium uses HAE for positioning objects, so we need to convert. 
+A note on altitude: per STANAG 4609, tag 75 should provide the height above the [ellipsoid](https://support.pix4d.com/hc/en-us/articles/202559869-Orthometric-and-Ellipsoidal-Height#gsc.tab=0) (HAE), but instead it appears we are only getting sensor true altitude (tag 15) measured from MSL. Cesium uses HAE for positioning objects, so we need to convert.
 
 Nominally our height above the ellipsoid is calculated by:
 ```math
@@ -68,7 +68,7 @@ where N = geoid undulation (height of the geoid above the ellipsoid) H = orthome
 
 #  <a name="demoarea"></a>Demos
 
-The frame rate here is slightly reduced because of the screen recorder utilized. True FPS is displayed in Cesium. As previously mentioned, if we could receive LDS packets more frequently, the flyer animation could be smoothed. We could also attempt to change the [interpolation algorithm](https://cesiumjs.org/Cesium/Build/Documentation/HermitePolynomialApproximation.html) in use. 
+The frame rate here is slightly reduced because of the screen recorder utilized. True FPS is displayed in Cesium. As previously mentioned, if we could receive LDS packets more frequently, the flyer animation could be smoothed. We could also attempt to change the [interpolation algorithm](https://cesiumjs.org/Cesium/Build/Documentation/HermitePolynomialApproximation.html) in use.
 
 ### Latency Test
 [![Latency Test](https://img.youtube.com/vi/d7o2-0aC6og/0.jpg)](https://www.youtube.com/watch?v=d7o2-0aC6og)
@@ -101,3 +101,6 @@ Enable KLV metadata on your video feed, and run:
 `./start.sh`
 
 In this example, video is being streamed via RTSP.
+
+### Example Video with KLV metadata
+- http://samples.ffmpeg.org/MPEG2/mpegts-klv/Day%20Flight.mpg
