@@ -106,7 +106,7 @@ JSMpeg.Decoder.Metadata = (function() {
 			case 2: // unix timestamp
 				var buffer = [];
 				for (var i = 0; i < length; i++) {
-					buffer.push((this.bits.read(8)).toString(16)); // Read one byte at a time
+					buffer.push(('0'+(this.bits.read(8)).toString(16)).slice(-2)); // Read one byte at a time
 				}
 				var unix_timestamp = bigInt(buffer.join(''), 16).toString();
 				return new Date(unix_timestamp / 1000); // Convert from microseconds to milliseconds, and return
