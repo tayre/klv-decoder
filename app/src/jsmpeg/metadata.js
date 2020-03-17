@@ -1,6 +1,9 @@
 /*
  * @author Tom Ayre <ayre.tom+github@gmail.com>
  */
+
+console.log(JSMpeg)
+
 JSMpeg.Decoder.Metadata = (function() {
 	"use strict";
 
@@ -174,6 +177,22 @@ JSMpeg.Decoder.Metadata = (function() {
 			case 12:
 			case 59:
 				return this.to_lds_string(length);
+			case 82:
+				return this.to_lds_latitude(this.bits.read(32));
+			case 83:
+				return this.to_lds_longitude(this.bits.read(32));
+			case 84:
+				return this.to_lds_latitude(this.bits.read(32));
+			case 85:
+				return this.to_lds_longitude(this.bits.read(32));
+			case 86:
+				return this.to_lds_latitude(this.bits.read(32));
+			case 87:
+				return this.to_lds_longitude(this.bits.read(32));
+			case 88:
+				return this.to_lds_latitude(this.bits.read(32));
+			case 89:
+				return this.to_lds_longitude(this.bits.read(32));
 			default:
 				this.bits.read(length << 3);
 				return -1;
@@ -396,6 +415,14 @@ JSMpeg.Decoder.Metadata = (function() {
 		71: "alternate_platform_heading",
 		72: "event_start_time_utc",
 		73: "remote_video_terminal_lds_conversion",
+		82: "corner_latitude_point_1",
+		83: "corner_longitude_point_1",
+		84: "corner_latitude_point_2",
+		85: "corner_longitude_point_2",
+		86: "corner_latitude_point_3",
+		87: "corner_longitude_point_3",
+		88: "corner_latitude_point_4",
+		89: "corner_longitude_point_4",
 	}
 
 	return DATA;
