@@ -2,8 +2,6 @@
  * @author Tom Ayre <ayre.tom+github@gmail.com>
  */
 
-console.log(JSMpeg)
-
 JSMpeg.Decoder.Metadata = (function() {
 	"use strict";
 
