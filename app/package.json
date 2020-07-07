@@ -18,7 +18,7 @@
     "bluebird": "^3.4.6",
     "compressible": "^2.0.9",
     "coffeescript": "^1.12.6",
-    "electron": "^1.6.1",
+    "electron": "^9.1.0",
     "event-stream": "^3.3.4",
     "globby": "^6.1.0",
     "glsl-strip-comments": "^1.0.0",
