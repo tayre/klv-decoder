@@ -56,3 +56,22 @@ test('resynchronizes after leading noise containing false sync bytes',()=>{
 test('reset prevents old partial KLV bytes from crossing a reconnection',()=>{
  const d=setup();const bytes=metadata();d.ts.write(transport(bytes.subarray(0,30)).bytes);d.ts.reset();d.ts.write(transport(bytes).bytes);assert.equal(d.output.length,1);
 });
+test('changed payload with repeated continuity counter is not silently treated as duplicate',()=>{
+ const d=setup();d.ts.write(transport(packet([item(4,Buffer.from('A'))])).bytes);
+ d.ts.write(transport(packet([item(4,Buffer.from('B'))])).bytes);
+ assert.equal(d.output.length,2);assert.equal(d.output[1].payload.platform_tail_number.value,'B');
+ assert.equal(d.ts.stats.continuityErrors,1);assert.equal(d.ts.stats.duplicates,0);
+});
+test('explicit PID cannot be starved by unrelated incomplete PES headers',()=>{
+ const d=setup({maxPidStates:2},258);
+ for(let pid=300;pid<310;pid++)d.ts.write(tsPacket(Buffer.from([0]),{pid}));
+ d.ts.write(transport(metadata()).bytes);assert.equal(d.output.length,1);assert.equal(d.ts.stats.pidStateLimit,0);
+});
+test('33-bit PES timestamps retain raw clock values across rollover',()=>{
+ const d=setup(),klv=metadata();
+ for(const [cc,pts] of [[0,[0x2f,255,255,255,255]],[1,[0x21,0,1,0,1]]]){
+  const header=Buffer.from([0,0,1,0xbd,0,klv.length+8,128,128,5,...pts]);
+  d.ts.write(tsPacket(Buffer.concat([header,klv]),{cc}));
+ }
+ assert.equal(d.output.length,2);assert.equal(d.output[0].pts,(2**33-1)/90000);assert.equal(d.output[1].pts,0);
+});

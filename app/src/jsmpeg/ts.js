@@ -1,5 +1,8 @@
 /* MPEG-TS/PES demuxer for the JSMpeg live viewer. No PAT/PMT discovery. */
-JSMpeg.Demuxer.TS = (function() {
+(function(factory) {
+    if(typeof module==='object' && module.exports)module.exports=factory();
+    else JSMpeg.Demuxer.TS=factory();
+})(function() {
     'use strict';
     function TS(options={}) {
         this.leftoverBytes=null;
@@ -48,6 +51,9 @@ JSMpeg.Demuxer.TS = (function() {
         this.stats.packets++;
         const pid=((packet[1]&31)<<8)|packet[2],start=!!(packet[1]&64),cc=packet[3]&15;
         const control=(packet[3]>>4)&3;
+        // An explicitly selected metadata PID must not compete for state slots
+        // with unrelated programs or attacker-controlled short PES headers.
+        if(this.connections.size && [...this.connections.values()].every(c=>c.explicit && c.pid!==pid))return;
         let state=this.states.get(pid),pos=4,discontinuity=false;
         if((packet[1]&128) || (packet[3]&192) || control===0){
             this.stats.transportErrors++;this._drop(state);return;
@@ -60,15 +66,21 @@ JSMpeg.Demuxer.TS = (function() {
         if(discontinuity && state){this._drop(state);state.cc=null;}
         if(!(control&1) || pos===188)return;
         if(state?.cc!==undefined && state.cc!==null){
-            if(cc===state.cc){this.stats.duplicates++;return;}
-            if(cc!==((state.cc+1)&15)){this.stats.continuityErrors++;this._drop(state);}
+            if(cc===state.cc){
+                const payload=packet.subarray(pos);
+                if(state.lastStart===start && state.lastPayload?.length===payload.length &&
+                    payload.every((byte,i)=>byte===state.lastPayload[i])){this.stats.duplicates++;return;}
+                this.stats.continuityErrors++;this._drop(state);
+                if(!start)return;
+            }
+            else if(cc!==((state.cc+1)&15)){this.stats.continuityErrors++;this._drop(state);}
         }
         if(!state){
             if(!start)return;
             if(this.states.size>=this.maxPidStates){this.stats.pidStateLimit++;return;}
             state={cc:null,buffers:[],length:0,active:false};this.states.set(pid,state);
         }
-        state.cc=cc;
+        state.cc=cc;state.lastStart=start;state.lastPayload=new Uint8Array(packet.subarray(pos));
         if(start){
             if(state.active){
                 if(state.total===0)this._complete(state);
@@ -133,4 +145,4 @@ JSMpeg.Demuxer.TS = (function() {
     TS.STREAM={PACK_HEADER:0xba,SYSTEM_HEADER:0xbb,PROGRAM_MAP:0xbc,PRIVATE_1:0xbd,
         PADDING:0xbe,PRIVATE_2:0xbf,AUDIO_1:0xc0,VIDEO_1:0xe0,DIRECTORY:0xff};
     return TS;
-})();
+});

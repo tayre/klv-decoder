@@ -39,7 +39,8 @@ same instance. Exceptions from callbacks propagate to the caller.
 Each decoded packet keeps the original `payload` map and adds:
 
 - `checksum_valid`, absolute stream-byte `offset`, and optional transport `pts`;
-- `warnings` for missing timestamps or unsupported legacy field widths;
+- `warnings` for missing timestamps/version, unverified versions, unsupported widths,
+  undecoded fields, malformed UTF-8, and reserved numeric error values;
 - `derived.corners` for offset corners with a frame center in the same packet.
 
 Timestamps retain both a millisecond-resolution `Date` and the original
@@ -49,11 +50,16 @@ fields include units; reserved signed error values return `null` and
 `decoded: false`. A recognized numeric field with an unexpected width returns
 `null`, `raw`, and `unsupported_length: true`; no scaling is guessed.
 
+Malformed UTF-8 is preserved in `raw` with a null value and `invalid_utf8` error,
+rather than silently replacing bytes in identifiers. Version warnings describe
+coverage, not a claim that another version is invalid. Nested security metadata
+is preserved but not interpreted or enforced.
+
 The default mode tolerates missing timestamps and legacy widths while still
 requiring bounded, structurally valid packets and correct checksums. Strict
 mode additionally requires tag 2 first, supported widths for known fields,
-a representable timestamp, and canonical BER/OID forms. It is a structural
-validation option, **not a full ST 0601 conformance validator**. Interpretation
+a representable timestamp, valid UTF-8, and canonical BER/OID forms. It is a structural
+validation option, **not a full ST 0601 conformance validator**. Strict mode can still accept an unverified version with a warning. Interpretation
 is based on the implemented ST 0601.8 mappings, not version-dispatched schemas.
 
 The stream buffer starts at 4 KiB and cannot exceed `maxPacketSize + 21` bytes
@@ -80,7 +86,31 @@ node scripts/decode-klv.js --strict recording.klv > packets.jsonl
 The exporter applies stdout backpressure between input chunks, writes
 errors/counters to stderr, and exits 0 for decoded input without rejections,
 1 for no packets or an I/O/usage failure, and 2 when packets were rejected.
-For a TS recording, FFmpeg can extract the raw stream first:
+## Metadata-only TS export
+
+```sh
+node scripts/decode-klv.js --format ts --pid 0x1f1 recording.ts > packets.jsonl
+cat recording.ts | node scripts/decode-klv.js --format ts --pid 497 - > packets.jsonl
+```
+
+Choose the metadata PID using a media probe or the producer's configuration.
+For example, `ffprobe -v error -show_streams recording.ts` shows stream IDs.
+TS mode requires an explicit PID to prevent accidental selection of a different
+program. It uses the same demuxer as the viewer but never loads a video decoder.
+It supports 188-byte TS carrying raw UAS KLV in private PES 0xBD; it does not
+implement synchronous metadata access units, PAT/PMT discovery, or 192/204-byte
+framing. Video codec bytes on other PIDs are ignored. PTS is the raw 33-bit
+clock in seconds, including its rollover; no UTC alignment is inferred.
+
+Transport counters and the selected PID are included on stderr. Truncation,
+continuity faults, malformed transport/PES and limit failures produce exit 2,
+even when some metadata was recovered. An empty or wrong-PID extraction exits 1.
+Counters for explicit-PID mode describe selected-stream errors, not an audit of
+all other media programs. JSON offsets are bytes within the extracted metadata
+stream, not offsets within the original TS file. Warnings alone do not change
+the exit status; consumers must apply their own supported-version/field policy.
+
+For other carriage formats, FFmpeg can extract the raw stream first:
 
 ```sh
 ffmpeg -i recording.ts -map 0:d:0 -c copy -f data recording.klv

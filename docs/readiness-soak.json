@@ -1,0 +1,66 @@
+{
+  "node": "v24.18.0",
+  "seconds": 2.332739875,
+  "gc": true,
+  "stats": {
+    "bytesReceived": 163000000,
+    "packetsDecoded": 990000,
+    "packetsRejected": 10000,
+    "discardedBytes": 0,
+    "errors": {
+      "checksum_mismatch": 10000
+    }
+  },
+  "samples": [
+    {
+      "packets": 99000,
+      "heapUsed": 4282144,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 198000,
+      "heapUsed": 4278592,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 297000,
+      "heapUsed": 4272728,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 396000,
+      "heapUsed": 4274904,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 495000,
+      "heapUsed": 4274968,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 594000,
+      "heapUsed": 4274328,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 693000,
+      "heapUsed": 4296456,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 792000,
+      "heapUsed": 4296520,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 891000,
+      "heapUsed": 4295792,
+      "bufferCapacity": 4096
+    },
+    {
+      "packets": 990000,
+      "heapUsed": 4298488,
+      "bufferCapacity": 4096
+    }
+  ]
+}

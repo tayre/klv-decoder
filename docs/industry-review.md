@@ -1,6 +1,7 @@
 # Industry-readiness review
 
-Reviewed against commit `75517c3`, with the deeper-pass changes left uncommitted.
+Historical review of the first decoder extraction (baseline `75517c3`, shipped in `9d7de37`).
+See [the follow-up readiness sweep](readiness-sweep.md) for current findings and verification.
 
 ## Assessment
 
@@ -107,12 +108,10 @@ with a baseline checkout, or omit the argument for the current implementation.
   [MISB ST 0601.8](https://upload.wikimedia.org/wikipedia/commons/1/19/MISB_Standard_0601.pdf).
   This is a narrow corpus, not a multi-vendor certification exercise.
 
-The previous hosted CI run passed the Node 22 job. Its Node 24 globe browser
-test exceeded the 30-second timeout; the other two browser tests passed. This
-pass reduces the viewport, allows 90 seconds and retains failure traces. The
-new configuration passes locally but has not yet been rerun on Linux. The
-previous dependency removals have been reassessed by GitHub: zero open
-Dependabot alerts were returned during this review.
+The revised browser configuration subsequently passed hosted Linux CI in
+`9d7de37` and `9a87b64`, including both Node versions and browser tests.
+The follow-up sweep records newer local verification separately; those results
+must not be confused with a hosted run of uncommitted changes.
 
 ## Remaining adoption gates, in priority order
 
@@ -140,8 +139,8 @@ Dependabot alerts were returned during this review.
    not comprehensively fuzzed and should not be treated as hardened against
    arbitrary hostile video.
 5. **Reusable release discipline.** Package/version the standalone decoder,
-   define compatibility guarantees, verify its declarations with a TypeScript
-   consumer, broaden the OS/browser matrix, and publish compatibility fixtures
+   define compatibility guarantees, automate declaration checks with a TypeScript
+   consumer (manually verified in the follow-up sweep), broaden the OS/browser matrix, and publish compatibility fixtures
    and a supported-standard/version matrix. No npm release was made here.
 
 A sensible next milestone is a metadata-only library release for a small,

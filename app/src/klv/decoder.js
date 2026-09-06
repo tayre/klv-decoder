@@ -93,7 +93,7 @@
     const key = Uint8Array.from([6,14,43,52,2,11,1,1,14,1,3,1,1,0,0,0]);
     const keyHex = '060e2b34020b01010e01030101000000';
     const hexBytes = Array.from({length:256}, (_,i) => i.toString(16).padStart(2,'0'));
-    const text = new TextDecoder('utf-8');
+    const text = new TextDecoder('utf-8', {fatal:true});
     const hex = bytes => {
         const chunks=[];
         for(let start=0;start<bytes.length;start+=4096){
@@ -168,7 +168,10 @@
             result.unit=f.unit;
             if(f.signed && integer===f.invalid) result.error='out_of_range';
             else result.value=(f.signed ? 0:f.min)+integer*f.scale;
-        } else if(strings.has(tag)) result.value=text.decode(bytes);
+        } else if(strings.has(tag)) {
+            try { result.value=text.decode(bytes); }
+            catch { result.raw=hex(bytes);result.error='invalid_utf8'; }
+        }
         else {result.value=hex(bytes);result.raw=result.value;result.decoded=false;}
         return result;
     }
@@ -278,17 +281,22 @@
                 const length=lengthAt(bytes,pos,bytes.length,this.strict);
                 if(!length || length.error || length.next+length.value>bytes.length)return reject(length?.error || 'field_overrun');
                 const item=decodeValue(tag,bytes.subarray(length.next,length.next+length.value),view,length.next);
-                if(this.strict && (item.unsupported_length || (tag===2 && item.value===null)))return reject('invalid_field');
+                if(this.strict && (item.unsupported_length || item.error==='invalid_utf8' || (tag===2 && item.value===null)))return reject('invalid_field');
+                if(item.error)warnings.push({code:item.error,tag});
+                if(item.decoded===false)warnings.push({code:'undecoded_field',tag});
                 if(item.unsupported_length)warnings.push({code:'unsupported_length',tag});
                 payload[names[tag] || 'unknown_'+tag]=item;
                 pos=length.next+length.value;
                 if(tag===1 && pos!==bytes.length)return reject('checksum_not_last');
             }
             if(!seen.has(2))warnings.push({code:'missing_timestamp'});
+            const version=payload.uas_lds_version_number?.value;
+            if(version===undefined)warnings.push({code:'missing_version',tag:65});
+            else if(version!==8)warnings.push({code:'unverified_version',tag:65});
             // Offsets remain offsets; expose absolute corners separately, only when
             // the same packet supplies a valid frame center. Never reuse prior state.
             const corners=[];
-            for(let i=0;seen.has(26) && i<4;i++) {
+            for(let i=0;i<4;i++) {
                 const lat=payload[names[26+i*2]]?.value,lon=payload[names[27+i*2]]?.value;
                 const centerLat=payload.frame_center_latitude?.value,centerLon=payload.frame_center_longitude?.value;
                 if([lat,lon,centerLat,centerLon].every(v=>typeof v==='number' && Number.isFinite(v))) {
@@ -301,9 +309,9 @@
         }
         reset(reason='stream_reset') {
             if(this.busy)throw new Error('Cannot reset while decoding');
-            const buffered=this.bufferedBytes;
+            const buffered=this.bufferedBytes,offset=this.offset+this.start;
             this.start=0;this.limit=0;this.pending=null;this.offset=this.stats.bytesReceived;this.marks=[];
-            if(buffered)this._error(reason,0);
+            if(buffered)this._error(reason,offset);
         }
         end() {
             this.reset('truncated_packet');

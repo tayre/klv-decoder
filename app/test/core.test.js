@@ -78,3 +78,25 @@ test('PTS follows the first byte even when the universal key is fragmented',()=>
   const d=create();d.decoder.push(valid.subarray(0,split),10);d.decoder.push(valid.subarray(split),11);assert.equal(d.packets[0].pts,10,`split ${split}`);
  }
 });
+test('malformed UTF-8 remains raw and is rejected in strict mode',()=>{
+ const bytes=packet([timestamp,item(4,[0xc3,0x28])]);const d=create();d.decoder.push(bytes);
+ const field=d.packets[0].payload.platform_tail_number;
+ assert.equal(field.value,null);assert.equal(field.raw,'c328');assert.equal(field.error,'invalid_utf8');
+ assert.ok(d.packets[0].warnings.some(w=>w.code==='invalid_utf8'));
+ const strict=create({strict:true});strict.decoder.push(bytes);assert.equal(strict.packets.length,0);assert.equal(strict.errors[0].code,'invalid_field');
+});
+test('partial corners include corner two without requiring corner one',()=>{
+ const d=create();d.decoder.push(packet([item(23,[0,0,0,0]),item(24,[0x7f,255,255,255]),item(28,[0,0]),item(29,[0x7f,255])]));
+ assert.equal(d.packets[0].derived.corners.length,1);assert.equal(d.packets[0].derived.corners[0].corner,2);
+ assert.ok(Math.abs(d.packets[0].derived.corners[0].longitude+179.925)<1e-8);
+});
+test('EOF diagnostics identify the unfinished packet after accepted data',()=>{
+ const d=create();d.decoder.push(Buffer.concat([valid,valid.subarray(0,20)]));d.decoder.end();
+ assert.equal(d.errors[0].offset,valid.length);
+});
+test('unverified schemas and undecoded security sets are explicit',()=>{
+ const d=create();d.decoder.push(packet([timestamp,item(65,[17]),item(48,[1,1,1])]));
+ assert.ok(d.packets[0].warnings.some(w=>w.code==='unverified_version'));
+ assert.ok(d.packets[0].warnings.some(w=>w.code==='undecoded_field' && w.tag===48));
+ assert.equal(d.packets[0].payload.security_local_metadata_set.raw,'010101');
+});
