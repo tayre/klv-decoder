@@ -53,6 +53,8 @@ WSSource.prototype.onOpen = function() {
 };
 
 WSSource.prototype.onClose = function() {
+    this.established=false;
+    if(this.destination && this.destination.reset)this.destination.reset();
 	if (this.shouldAttemptReconnect) {
 		clearTimeout(this.reconnectTimeoutId);
 		this.reconnectTimeoutId = setTimeout(function(){

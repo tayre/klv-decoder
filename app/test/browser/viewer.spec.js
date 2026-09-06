@@ -25,8 +25,12 @@ test('live video and telemetry render with offline globe; camera controls work',
   await page.check('#show-video');await page.check('#centre-video');await expect(page.locator('#video-canvas')).toHaveClass('centre');
   await page.uncheck('#centre-video');
   // Missing/invalid optional fields must not break telemetry handling.
-  await page.evaluate(()=>document.getElementById('klv-output').dispatchEvent(new CustomEvent('klv',{detail:{payload:{}}})));
+  await page.evaluate(()=>{
+    window.savedDestination=UAV.player.data.destination;UAV.player.data.destination=null;
+    document.getElementById('klv-output').dispatchEvent(new CustomEvent('klv',{detail:{payload:{}}}));
+  });
   await expect(page.locator('#telemetry')).toContainText('Latitude: —');
+  await page.evaluate(()=>{UAV.player.data.destination=window.savedDestination;});
   await expect(page.locator('#telemetry')).toContainText('DEMO-UAV');
   expect(errors).toEqual([]);
   await page.screenshot({path:'test-results/viewer.png'});
@@ -46,4 +50,19 @@ test('experimental video material page initializes and receives video',async({pa
   await page.waitForTimeout(500);
   await expect(page.locator('.cesium-widget-errorPanel')).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+test('telemetry bursts keep one pending display update and stale data is labelled',async({page})=>{
+ await page.goto('/'+query);await expect(page.locator('#telemetry')).toContainText('DEMO-UAV');
+ const baseline=await page.evaluate(()=>{
+   UAV.player.data.destination=null;
+   const before={...UAV.telemetryStats};
+   for(let i=0;i<1000;i++)document.getElementById('klv-output').dispatchEvent(new CustomEvent('klv',{detail:{payload:{platform_tail_number:{value:'burst-'+i}}}}));
+   return before;
+ });
+ await expect(page.locator('#telemetry')).toContainText('burst-999');
+ const after=await page.evaluate(()=>({...UAV.telemetryStats}));
+ expect(after.received-baseline.received).toBe(1000);
+ expect(after.rendered-baseline.rendered).toBeLessThanOrEqual(2);
+ await expect(page.locator('#status')).toHaveText('Telemetry stale (over 3 seconds)',{timeout:7000});
+ await expect(page.locator('#focus-flyer')).toBeDisabled();
 });

@@ -1,5 +1,7 @@
 # Modernization verification
 
+This records the first modernization pass. See [the deeper industry review](industry-review.md) for subsequent changes, benchmarks, and updated CI findings.
+
 Checked on macOS with Node 24.18.0, npm 11.16.0, FFmpeg and local Chrome on
 2026-09-05. No camera was available for a live hardware test.
 

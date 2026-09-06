@@ -58,11 +58,11 @@ test('invalid and excessive outer BER lengths recover without waiting',()=>{
 });
 test('streaming history stays bounded across thousands of packets',()=>{
   const d=decoder();for(let i=0;i<10000;i++)d.decoder.write(0,[sample]);
-  assert.equal(d.output.length,10000);assert.ok(d.decoder.bits.byteLength<=sample.length);assert.equal(d.decoder.timestamps.length,0);
+  assert.equal(d.output.length,10000);assert.ok(d.decoder.parser.bufferedBytes<=sample.length);assert.equal(d.decoder.timestamps.length,0);
 });
 test('MISB ST 0601.8 section 8.1.2 published checksum vector',()=>{
-  const d=decoder();d.decoder.bits=new d.context.JSMpeg.BitBuffer(Buffer.from('060e2b34020081bbb4fd','hex'));
-  d.decoder.bits.index=80;assert.equal(d.decoder.verifyCRC(0xb4fd,2,0),true);
+  const Decoder=require('../src/klv/decoder');
+  assert.equal(Decoder.checksum(Buffer.from('060e2b34020081bb','hex')),0xb4fd);
 });
 test('large buffer writes grow correctly in expand and evict modes',()=>{
   const {JSMpeg}=load();
@@ -83,8 +83,9 @@ test('published MISB heading and negative pitch examples',()=>{
 test('transport demuxer handles every split of a multi-packet PES',()=>{
   const {transport}=require('../scripts/demo-stream');
   const input=transport(packet([item(4,Buffer.alloc(400,65))])).bytes;
+  const context=load('ts'); // New decoder state per split; avoid hundreds of redundant VM realms.
   for(let split=1;split<input.length;split++){
-    const d=decoder(load('ts'));const ts=new d.context.JSMpeg.Demuxer.TS({});ts.connect(0xbd,d.decoder);
+    const d=decoder(context);const ts=new d.context.JSMpeg.Demuxer.TS({});ts.connect(0xbd,d.decoder);
     ts.write(input.subarray(0,split));ts.write(input.subarray(split));
     assert.equal(d.output.length,1,`split ${split}`);assert.equal(d.output[0].payload.platform_tail_number.value.length,400);
   }

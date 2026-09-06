@@ -1,0 +1,53 @@
+{
+  "node": "v24.18.0",
+  "cpu": "Apple M4 Pro",
+  "method": "Median of 5 runs, same VM adapter harness, no output retention",
+  "results": {
+    "baseline": {
+      "recorded": {
+        "packets": 50000,
+        "medianMs": 220.53316700000005,
+        "packetsPerSecond": 226723,
+        "mibPerSecond": 35,
+        "bufferCapacity": 524288
+      },
+      "unknown64k": {
+        "packets": 200,
+        "medianMs": 282.8601669999998,
+        "packetsPerSecond": 707,
+        "mibPerSecond": 44,
+        "bufferCapacity": 524288
+      },
+      "corrupt64k": {
+        "packets": 200,
+        "medianMs": 281.13549999999987,
+        "packetsPerSecond": 711,
+        "mibPerSecond": 44,
+        "bufferCapacity": 524288
+      }
+    },
+    "current": {
+      "recorded": {
+        "packets": 50000,
+        "medianMs": 164.44358399999965,
+        "packetsPerSecond": 304056,
+        "mibPerSecond": 47,
+        "bufferCapacity": 4096
+      },
+      "unknown64k": {
+        "packets": 200,
+        "medianMs": 74.27762499999972,
+        "packetsPerSecond": 2693,
+        "mibPerSecond": 168,
+        "bufferCapacity": 131072
+      },
+      "corrupt64k": {
+        "packets": 200,
+        "medianMs": 9.891625000000204,
+        "packetsPerSecond": 20219,
+        "mibPerSecond": 1264,
+        "bufferCapacity": 131072
+      }
+    }
+  }
+}

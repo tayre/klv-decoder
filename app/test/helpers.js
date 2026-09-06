@@ -6,6 +6,7 @@ function load(...files) {
   const context = vm.createContext({Uint8Array,ArrayBuffer,Date,console,BigInt,TextDecoder,CustomEvent:global.CustomEvent,
     document:{readyState:'loading',addEventListener(){},removeEventListener(){}},
     JSMpeg:{Decoder:{},Demuxer:{},DataOutput:{},Source:{}}});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/klv/decoder.js'),'utf8'),context);
   for (const file of ['buffer','decoder','metadata',...files]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/jsmpeg',file+'.js'),'utf8'),context,{filename:file+'.js'});
   }

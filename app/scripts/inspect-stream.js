@@ -6,6 +6,7 @@ const path=require('node:path');
 if(!process.argv[2]){console.error('Usage: node scripts/inspect-stream.js recording.ts');process.exit(1);}
 const context=vm.createContext({Uint8Array,ArrayBuffer,Date,BigInt,TextDecoder,console,
   window:{performance},document:{readyState:'loading',addEventListener(){}}});
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/klv/decoder.js'),'utf8'),context);
 for(const name of ['jsmpeg','buffer','decoder','metadata','ts','mpeg1']){
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/jsmpeg',name+'.js'),'utf8'),context);
 }
@@ -23,6 +24,7 @@ demux.connect(0xe0,{write(pts,bytes){video.write(pts,bytes);while(video.decode()
   for await(const chunk of fs.createReadStream(process.argv[2],{highWaterMark:997})){
     bytes+=chunk.length;demux.write(chunk);
   }
-  console.log(JSON.stringify({bytes,videoFrames:frames,metadataPackets:packets,firstMetadata},null,2));
+  demux.end();metadata.parser.end();
+  console.log(JSON.stringify({bytes,videoFrames:frames,metadataPackets:packets,metadataStats:metadata.parser.stats,transportStats:demux.stats,firstMetadata},null,2));
   if(!packets)process.exitCode=1;
 })().catch(error=>{console.error(error.message);process.exitCode=1;});

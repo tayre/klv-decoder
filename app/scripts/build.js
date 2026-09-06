@@ -8,9 +8,10 @@ async function main() {
     'websocket', 'ts', 'decoder', 'mpeg1', 'mp2', 'metadata', 'webgl', 'canvas2d',
     'webaudio', 'klvoutput'];
   await mkdir(path.join(root, 'www/dist'), { recursive: true });
-  await build({ stdin: { contents: (await Promise.all(sources.map(name =>
+  await build({ stdin: { contents: (await readFile(path.join(root,'src/klv/decoder.js'),'utf8')) + '\n' + (await Promise.all(sources.map(name =>
     readFile(path.join(root, 'src/jsmpeg', name + '.js'), 'utf8')))).join('\n') },
     outfile: path.join(root, 'www/dist/jsmpeg.min.js'), minify: true, target: 'es2022' });
+  await cp(path.join(root,'src/klv/decoder.js'),path.join(root,'www/dist/klv.js'));
   await build({ entryPoints: [path.join(root, 'src/uav/main.js')],
     outfile: path.join(root, 'www/dist/main.min.js'), minify: true, target: 'es2022' });
   await cp(path.join(root, 'node_modules/cesium/Build/Cesium'), path.join(root, 'www/vendor/cesium'), { recursive: true });

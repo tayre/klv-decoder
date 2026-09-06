@@ -46,7 +46,7 @@ var Player = function(url, options) {
 
 	if(options.data !== false){
 		this.data = new JSMpeg.Decoder.Metadata(options);
-		this.demuxer.connect(JSMpeg.Demuxer.TS.STREAM.PRIVATE_1, this.data);
+		this.demuxer.connect(JSMpeg.Demuxer.TS.STREAM.PRIVATE_1, this.data, options.metadataPid ?? null);
 		this.klvOut = new JSMpeg.DataOutput.KLV(options);
 		this.data.connect(this.klvOut)
 	}
@@ -123,6 +123,7 @@ Player.prototype.stop = function(ev) {
 Player.prototype.destroy = function() {
 	this.pause();
 	this.source.destroy();
+	if (this.klvOut) { this.klvOut.destroy(); }
 	if (this.renderer) { this.renderer.destroy(); }
 	if (this.audioOut) { this.audioOut.destroy(); }
 	document.removeEventListener('visibilitychange', this.visibilityHandler);

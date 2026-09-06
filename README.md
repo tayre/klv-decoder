@@ -8,6 +8,10 @@ In order for this to be compelling we need to minimize video latency from the vi
 
 TL;DR jump to the [demo videos](#demoarea).
 
+For integration work, see the [standalone decoder API](docs/decoder-api.md),
+[supported fields](docs/supported-fields.md), and [industry-readiness review](docs/industry-review.md).
+The original browser demo remains below.
+
 # Quick start
 
 You need Node.js 22 or newer and FFmpeg on your PATH. From the repository root:
@@ -52,7 +56,7 @@ data.connect(klvOut);
 ```
 # Details
 ### Decoder
-The decoder is implemented by [metadata.js](app/src/jsmpeg/metadata.js). The basic flow of control is to look for the 16-byte universal UAS LDS key within the bit stream, and once found, start reading the remainder of the LDS packet. The payload boundaries are easily checked, since they begin with a Unix timestamp, and end with a checksum. Of note, in JavaScript, the max integer is [2^53](http://ecma262-5.com/ELS5_HTML.htm#Section_8.5), so we use native `BigInt` for the 8-byte microsecond timestamp, dividing to milliseconds before converting it to a JavaScript `Date`. The original implementation used BigInteger.js.
+The decoder is implemented by [decoder.js](app/src/klv/decoder.js), with [metadata.js](app/src/jsmpeg/metadata.js) adapting it to JSMpeg. The basic flow of control is to look for the 16-byte universal UAS LDS key within the bit stream, and once found, start reading the remainder of the LDS packet. The payload boundaries are easily checked, since they begin with a Unix timestamp, and end with a checksum. Of note, in JavaScript, the max integer is [2^53](http://ecma262-5.com/ELS5_HTML.htm#Section_8.5), so we use native `BigInt` for the 8-byte microsecond timestamp, dividing to milliseconds before converting it to a JavaScript `Date`. The original implementation used BigInteger.js.
 
 The key reference here is [MISB STANDARD 0601.8](https://upload.wikimedia.org/wikipedia/commons/1/19/MISB_Standard_0601.pdf) (the UAS LDS standard) which lists 95 KLV metadata elements, a subset of which STANAG 4609 requires. Importantly, floating point values (for example latitude/longitude points) are mapped to integers, so we must [convert ](app/src/jsmpeg/metadata.js) the incoming values to a more useful realworld datum.
 
@@ -62,7 +66,7 @@ Each length in the KLV set is [BER](https://en.wikipedia.org/wiki/X.690#BER_enco
 
 ![Example Packet](images/example_metadata.png)
 
-A 16-bit block character checksum is used for packet validation (despite the old `verifyCRC` function name, this is a sum rather than a polynomial CRC). Validation is done by a running 16-bit sum through the entire LDS packet starting with the 16 byte local data set key and ending with summing the 2 byte length field of the checksum data item (but not its value). A sample implementation is given in MISB 0601.8, which we implement [here](app/src/jsmpeg/metadata.js). Efficiency could be gained if we didn't loop twice over the packet, but rather accumulated the sum as the packet is processed.
+A 16-bit block character checksum is used for packet validation (despite the old `verifyCRC` function name, this is a sum rather than a polynomial CRC). Validation is done by a running 16-bit sum through the entire LDS packet starting with the 16 byte local data set key and ending with summing the 2 byte length field of the checksum data item (but not its value). A sample implementation is given in MISB 0601.8, which we implement [here](app/src/klv/decoder.js). Efficiency could be gained if we didn't loop twice over the packet, but rather accumulated the sum as the packet is processed.
 
 ### Renderer
 The renderer is implemented by [klvoutput.js](app/src/jsmpeg/klvoutput.js). It accepts the JSON object constructed by the decoder, and emits a [CustomEvent](https://developer.mozilla.org/en/docs/Web/API/CustomEvent) .
@@ -132,6 +136,7 @@ Send the FFmpeg stream to `http://127.0.0.1:8081/your-secret`. The secret must u
 The viewer accepts these optional URL parameters:
 
 - `stream=ws://host:8082/`: WebSocket source. Use `wss://` when serving the page over HTTPS. The launcher prints a URL with its configured port.
+- `metadataPid=258`: choose a metadata PID explicitly; otherwise the first matching private-stream PID is used.
 - `geoidHeight=-36.28`: local offset to add to MSL altitude when tag 75 is unavailable.
 - `terrainUrl=https://your-server/terrain/`: enables the Terrain checkbox for a Cesium-compatible terrain service. The default is a smooth ellipsoid.
 

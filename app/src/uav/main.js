@@ -42,10 +42,12 @@ window.addEventListener('DOMContentLoaded', function() {
         model:{uri:'data/models/sample_uas.glb', minimumPixelSize:40, maximumScale:100},
         point:{pixelSize:8, color:Cesium.Color.YELLOW}
     });
-    let mode = 'free', last = null;
+    let mode = 'free', last = null, pending = null, frame = null;
+    const telemetryStats = {received:0,rendered:0,lastReceivedAt:0};
     const value = (payload, name) => payload[name]?.value ?? null;
     const finite = value => typeof value === 'number' && Number.isFinite(value);
     function update(data) {
+        telemetryStats.rendered++;
         const p = data.payload;
         const lat = value(p,'sensor_latitude'), lon = value(p,'sensor_longitude');
         // HAE is preferred. MSL needs the user-supplied local geoid correction.
@@ -54,8 +56,8 @@ window.addEventListener('DOMContentLoaded', function() {
         const correction = Number(params.get('geoidHeight') || 0);
         const altitude = finite(hae) ? hae : finite(msl) ? msl + correction : null;
         const heading = value(p,'platform_heading_angle');
-        const pitch = value(p,'platform_pitch_angle');
-        const roll = value(p,'platform_roll_angle');
+        const pitch = value(p,'platform_pitch_angle_full') ?? value(p,'platform_pitch_angle');
+        const roll = value(p,'platform_roll_angle_full') ?? value(p,'platform_roll_angle');
         document.getElementById('telemetry').textContent = [
             value(p,'platform_tail_number') || 'UAV',
             `Latitude: ${lat ?? '—'}  Longitude: ${lon ?? '—'}`,
@@ -89,9 +91,18 @@ window.addEventListener('DOMContentLoaded', function() {
             heading:Cesium.Math.toRadians((last.heading || 0) + (azimuth || 0)),
             pitch:Cesium.Math.toRadians(elevation || 0), roll:0}});
     }
-    output.addEventListener('klv', e => update(e.detail));
-    const player = new JSMpeg.Player(wsUrl, {audio:false,canvas,klvelement:output});
-    window.UAV = {viewer, player, aircraft};
+    output.addEventListener('klv', e => {
+        telemetryStats.received++;telemetryStats.lastReceivedAt=performance.now();pending=e.detail;
+        if(frame===null)frame=requestAnimationFrame(()=>{frame=null;const data=pending;pending=null;update(data);});
+    });
+    const staleTimer=setInterval(()=>{
+        if(telemetryStats.lastReceivedAt && performance.now()-telemetryStats.lastReceivedAt>3000){
+            status.textContent='Telemetry stale (over 3 seconds)';
+            document.getElementById('focus-flyer').disabled=true;
+        }
+    },500);
+    const player = new JSMpeg.Player(wsUrl, {audio:false,canvas,klvelement:output,metadataPid:params.has('metadataPid') ? Number(params.get('metadataPid')):null});
+    window.UAV = {viewer, player, aircraft, telemetryStats};
     document.querySelector('#tools a').href = 'view-stream.html' + location.search;
     player.source.socket.addEventListener('open', () => {status.textContent='Connected; waiting for telemetry…';});
     player.source.socket.addEventListener('close', () => {status.textContent='Stream disconnected; reconnecting…';});
@@ -124,5 +135,5 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('show-video').addEventListener('change', e => {canvas.hidden = !e.target.checked;});
     document.getElementById('centre-video').addEventListener('change', e => {canvas.classList.toggle('centre',e.target.checked);});
     document.getElementById('focus-flyer').addEventListener('click', () => {if (last) viewer.flyTo(aircraft);});
-    window.addEventListener('pagehide', () => {player.destroy(); viewer.destroy();}, {once:true});
+    window.addEventListener('pagehide', () => {clearInterval(staleTimer);if(frame!==null)cancelAnimationFrame(frame);player.destroy(); viewer.destroy();}, {once:true});
 });
