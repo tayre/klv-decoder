@@ -1,75 +1,9 @@
- html, body, #cesiumContainer {
-	width: 100%;
-	height: 100%;
-	margin: 0;
-	padding: 0;
-	overflow: hidden;
-}
-
-#tools {
-	position: absolute;
-	z-index: 100;
-	top: 0;
-}
-
-#misc_tools {
-	position: absolute;
-	z-index: 100;
-	top: 0;
-	right: 0;
-}
-
-#video-canvas {
-	background: white;
-	position: fixed;
-	bottom: 0;
-	left: 0;
-	width: 250px;
-}
-
-#telemetry {
-	font-family: monospace;
-	background: rgba(40,40,40,0.7);
-	position: fixed;
-	left: 50%;
-	bottom: 0;
-	color: #de3;
-	padding: 5px;
-	border-radius: 5px;
-	border: 1px solid #444;
-	text-align: left;
-	transform: translate(-50%, 0%);
-}
-
-#video-canvas.centre {
-	opacity: 1;
-	height: 100%;
-	width: 100%;
-	top: 50%;
-	left: 50%;
-	-webkit-transform: translate(-50%, -50%);
-	transform: translate(-50%, -50%);*/
-	-webkit-clip-path: polygon(25% 25%, 75% 25%, 75% 75%, 25% 75%);
-	clip-path: polygon(25% 25%, 75% 25%, 75% 75%, 25% 75%);
-}
-
-#video-canvas.hide {
-	visibility: hidden;
-}
-
-.cesium-widget-credits {
-	display: none !important;
-}
-
-#klv-output {
-	display: none; /*remove to see raw telemetry*/
-	background: white;
-	position: fixed;
-	top: 0;
-	right: 0;
-	width: 500px;
-	height: 200px;
-	font-family: monospace;
-	font-size: 12px;
-	overflow: auto;
-}
+html, body, #cesiumContainer { width:100%; height:100%; margin:0; overflow:hidden; font-family:system-ui,sans-serif; }
+#tools { position:absolute; z-index:2; top:12px; left:12px; right:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; background:#17202de8; color:#fff; padding:12px; border-radius:8px; }
+#tools a { color:#b8dcff; }
+button, select { padding:6px; font:inherit; }
+#video-canvas { background:#15202b; position:fixed; bottom:36px; left:12px; width:320px; max-width:40vw; }
+#telemetry { position:fixed; right:12px; bottom:36px; background:#17202de8; color:#fff; padding:12px; border-radius:8px; font:13px/1.6 monospace; max-width:50vw; white-space:pre-wrap; }
+#status { position:fixed; top:100px; left:12px; color:#fff; background:#17202de8; padding:8px; border-radius:6px; }
+#video-canvas.centre { width:100%; height:100%; max-width:none; top:0; left:0; clip-path:polygon(25% 25%,75% 25%,75% 75%,25% 75%); pointer-events:none; }
+@media(max-width:700px) { #status {top:180px;} #telemetry {font-size:11px;} }

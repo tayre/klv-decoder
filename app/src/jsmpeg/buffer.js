@@ -21,7 +21,7 @@ BitBuffer.prototype.resize = function(size) {
 	var newBytes = new Uint8Array(size);
 	if (this.byteLength !== 0) {
 		this.byteLength = Math.min(this.byteLength, size);
-		newBytes.set(this.bytes, 0, this.byteLength);
+		newBytes.set(this.bytes.subarray(0, this.byteLength));
 	}
 	this.bytes = newBytes;
 	this.index = Math.min(this.index, this.byteLength << 3);
@@ -82,12 +82,15 @@ BitBuffer.prototype.write = function(buffers) {
 		if (this.mode === BitBuffer.MODE.EXPAND) {
 			var newSize = Math.max(
 				this.bytes.length * 2,
-				totalLength - available
+				this.byteLength + totalLength
 			);
 			this.resize(newSize)
 		}
 		else {
 			this.evict(totalLength);
+            if (this.byteLength + totalLength > this.bytes.length) {
+                this.resize(this.byteLength + totalLength);
+            }
 		}
 	}
 

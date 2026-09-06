@@ -1,24 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-	<title>KLV Decode Test</title>
-	<script type="text/javascript" src="js/dist/jsmpeg.min.js"></script>
-	<style type="text/css">
-		#video-canvas { width: 256px; }
-		#klv-output { font-family: monospace; text-align: left; }
-	</style>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KLV Decode Test</title>
+  <script src="dist/jsmpeg.min.js"></script>
+  <style>body {font:14px/1.5 system-ui;margin:24px;} #video-canvas {width:640px;max-width:100%;} #klv-output {white-space:pre-wrap;}</style>
 </head>
 <body>
-	<canvas id="video-canvas"></canvas>
-	<div id = "klv-output"></div>
-	<div id = 'output'></div>
-	<script type="text/javascript">
-		var canvas = document.getElementById('video-canvas');
-		var klv = document.getElementById('klv-output')
-		var url = 'ws://'+document.location.hostname+':8082/';
-		var player = new JSMpeg.Player(url, {canvas: canvas, audio: false, streaming: true, klvelement: klv});
-		klv.addEventListener('klv', function (e) { //console.info(e.detail) 
-		}, false);
-	</script>
+  <h1>KLV Decode Test</h1><p><a id="globe" href="/">Open the Cesium viewer</a></p>
+  <canvas id="video-canvas"></canvas><pre id="klv-output">Waiting for telemetry…</pre>
+  <script>
+    const url = new URLSearchParams(location.search).get('stream') || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.hostname}:8082/`;
+    document.getElementById('globe').href = '/' + location.search;
+    const player = new JSMpeg.Player(url, {canvas:document.getElementById('video-canvas'),audio:false,klvelement:document.getElementById('klv-output')});
+    window.addEventListener('pagehide',()=>player.destroy(),{once:true});
+  </script>
 </body>
 </html>

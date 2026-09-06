@@ -1,0 +1,43 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {once}=require('node:events');
+const http=require('node:http');
+const {WebSocket}=require('ws');
+const {createServer}=require('../server');
+const {createRelay}=require('../websocket-relay');
+const {load,decoder}=require('./helpers');
+const {metadata,transport}=require('../scripts/demo-stream');
+test('static server serves viewer assets and excludes source files',async t=>{
+  const server=createServer();server.listen(0,'127.0.0.1');await once(server,'listening');
+  t.after(()=>new Promise(resolve=>{server.closeAllConnections();server.close(resolve);}));
+  const url=`http://127.0.0.1:${server.address().port}`;
+  for(const path of ['/','/www/index.html','/view-stream.html','/dist/jsmpeg.min.js','/vendor/cesium/Cesium.js']) assert.equal((await fetch(url+path)).status,200,path);
+  for(const path of ['/package.json','/server.js','/proxy/http://example.com','/%2e%2e%2fpackage.json'])assert.ok((await fetch(url+path)).status>=400,path);
+  assert.equal((await fetch(url,{method:'POST'})).status,405);
+});
+test('relay rejects wrong secret and broadcasts valid transport bytes through demuxer',async t=>{
+  const relay=createRelay({secret:'test',streamPort:0,websocketPort:0});
+  t.after(()=>relay.close());
+  await Promise.all([once(relay.server,'listening'),once(relay.sockets,'listening')]);
+  const url=`http://127.0.0.1:${relay.server.address().port}`;
+  const client=new WebSocket(`ws://127.0.0.1:${relay.sockets.address().port}`);await once(client,'open');
+  const d=decoder(load('ts'));const demux=new d.context.JSMpeg.Demuxer.TS({});demux.connect(0xbd,d.decoder);
+  const messages=[];client.on('message',bytes=>{messages.push(bytes);demux.write(bytes);});
+  assert.equal((await fetch(url+'/wrong',{method:'POST',body:transport(metadata()).bytes})).status,403);
+  assert.equal((await fetch(url+'/test')).status,405);
+  const message=once(client,'message');
+  const input=transport(metadata()).bytes;
+  assert.equal((await fetch(url+'/test',{method:'POST',body:input})).status,200);
+  await message;
+  assert.equal(messages.length,1);assert.deepEqual(messages[0],input);
+  assert.equal(d.output.length,1);assert.equal(d.output[0].payload.platform_tail_number.value,'DEMO-UAV');
+});
+test('relay refuses a second simultaneous producer',async t=>{
+  const relay=createRelay({secret:'test',streamPort:0,websocketPort:0});t.after(()=>relay.close());
+  await Promise.all([once(relay.server,'listening'),once(relay.sockets,'listening')]);
+  const url=`http://127.0.0.1:${relay.server.address().port}/test`;
+  const request=http.request(url,{method:'POST'});request.on('error',()=>{});request.flushHeaders();request.write('a');
+  await once(relay.server,'request');
+  assert.equal((await fetch(url,{method:'POST',body:'b'})).status,409);request.destroy();
+});

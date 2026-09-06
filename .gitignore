@@ -1,0 +1,7 @@
+app/node_modules/
+app/www/vendor/
+app/www/dist/
+app/test-results/
+app/playwright-report/
+app/.demo/
+.DS_Store

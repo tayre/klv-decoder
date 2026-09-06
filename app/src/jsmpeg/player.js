@@ -1,7 +1,8 @@
 JSMpeg.Player = (function(){ "use strict";
 
 var Player = function(url, options) {
-	this.options = options || {};
+	options = options || {};
+	this.options = options;
 
 	if (options.source) {
 		this.source = new options.source(url, options);
@@ -62,7 +63,8 @@ var Player = function(url, options) {
 
 	this.unpauseOnShow = false;
 	if (options.pauseWhenHidden !== false) {
-		document.addEventListener('visibilitychange', this.showHide.bind(this));
+		this.visibilityHandler = this.showHide.bind(this);
+		document.addEventListener('visibilitychange', this.visibilityHandler);
 	}
 
 	this.source.start();
@@ -121,8 +123,9 @@ Player.prototype.stop = function(ev) {
 Player.prototype.destroy = function() {
 	this.pause();
 	this.source.destroy();
-	this.renderer.destroy();
-	this.audioOut.destroy();
+	if (this.renderer) { this.renderer.destroy(); }
+	if (this.audioOut) { this.audioOut.destroy(); }
+	document.removeEventListener('visibilitychange', this.visibilityHandler);
 };
 
 Player.prototype.seek = function(time) {

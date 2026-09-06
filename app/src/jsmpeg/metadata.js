@@ -6,125 +6,139 @@ JSMpeg.Decoder.Metadata = (function() {
 	"use strict";
 
 	var DATA = function(options) {
-		JSMpeg.Decoder.Base.call(this, options);
-		var bufferSize = options.audioBufferSize || 512 * 1024;
-		var bufferMode = options.streaming ? JSMpeg.BitBuffer.MODE.EVICT : JSMpeg.BitBuffer.MODE.EXPAND;
-		this.bits = new JSMpeg.BitBuffer(bufferSize, bufferMode);
+        options = options || {};
+        JSMpeg.Decoder.Base.call(this, options);
+        this.maxPacketSize = options.metadataMaxPacketSize || 1024 * 1024;
+        this.bits = new JSMpeg.BitBuffer(512 * 1024, JSMpeg.BitBuffer.MODE.EXPAND);
+    };
+    DATA.prototype = Object.create(JSMpeg.Decoder.Base.prototype);
+    DATA.prototype.constructor = DATA;
 
-	};
+    // Compact consumed bytes, retaining an incomplete key or packet between writes.
+    DATA.prototype.write = function(pts, buffers) {
+        var consumed = this.bits.index >> 3;
+        this.bits.bytes.copyWithin(0, consumed, this.bits.byteLength);
+        this.bits.byteLength -= consumed;
+        this.bits.index = 0;
+        this.bits.write(buffers);
+        this.canPlay = true;
+        this.decode();
+    };
 
-	DATA.prototype = Object.create(JSMpeg.Decoder.Base.prototype);
-	DATA.prototype.constructor = DATA;
+    DATA.prototype.decode = function() {
+        var decoded = false;
+        while (this.readLDSPacket()) { decoded = true; }
+        return decoded;
+    };
 
-	DATA.prototype.decode = function() {
-		this.readLDSPacket();
-		return true;
-	};
+    // Definite BER length, bounded to keep malformed inputs from allocating forever.
+    DATA.prototype.readLength = function(end) {
+        if ((this.bits.index >> 3) >= end) { return null; }
+        var first = this.bits.read(8);
+        if (first < 128) { return first; }
+        var count = first & 127;
+        if (count === 0 || count > 4) { return -1; }
+        if ((this.bits.index >> 3) + count > end) { return null; }
+        var length = 0;
+        while (count--) { length = length * 256 + this.bits.read(8); }
+        return length;
+    };
 
-	/*
-	 * LDS KLV Packet is of the form
-	 * { unversial key | BER payload length | payload = {timestamp klv, klv, klv, .... klv, checksum klv} }
-	 * http://www.gwg.nga.mil/misb/docs/standards/ST0601.4.pdf
-	 */
-	DATA.prototype.readLDSPacket = function() {
+    DATA.prototype.readLDSPacket = function() {
+        var bits = this.bits;
+        var searchStart = bits.index;
+        if (bits.findNextUniversalKey() === -1) {
+            bits.index = Math.max(searchStart, (bits.byteLength - 15) * 8);
+            return false;
+        }
+        var start = (bits.index >> 3) - 16;
+        var length = this.readLength(bits.byteLength);
+        if (length === null) { bits.index = start * 8; return false; }
+        if (length < 4 || length > this.maxPacketSize) {
+            bits.index = (start + 1) * 8;
+            return true;
+        }
+        var end = (bits.index >> 3) + length;
+        if (end > bits.byteLength) { bits.index = start * 8; return false; }
+        var result = {
+            universal_key: '060e2b34020b01010e01030101000000',
+            payload_length: length,
+            payload: {}
+        };
+        var valid = false;
+        var seen = {};
+        while ((bits.index >> 3) < end) {
+            // Local tags are BER-OID integers; preserve unknown tags by number.
+            var key = 0, octet, count = 0;
+            do {
+                if ((bits.index >> 3) >= end || ++count > 4) { break; }
+                octet = bits.read(8);
+                key = key * 128 + (octet & 127);
+            } while (octet & 128);
+            if (count > 4 || (octet & 128) || seen[key]) { break; }
+            seen[key] = true;
+            var size = this.readLength(end);
+            var valueEnd = (bits.index >> 3) + size;
+            if (size === null || size < 0 || valueEnd > end) { break; }
+            var expected = DATA.LENGTHS[key];
+            if (key === 1 && size !== 2) { break; }
+            // Older ST 0601 versions can use different widths. Keep those bytes
+            // without guessing a conversion or losing the rest of a valid packet.
+            var unsupported = expected !== undefined && size !== expected;
+            var raw = unsupported ? Array.from(bits.bytes.subarray(bits.index >> 3, valueEnd), function(b) {
+                return b.toString(16).padStart(2, '0');
+            }).join('') : null;
+            var value = unsupported ? null : this.getKLVValue(key, size);
+            bits.index = valueEnd * 8;
+            var tag = DATA.KLV_METADATA_ELEMENTS[key] || ('unknown_' + key);
+            result.payload[tag] = {key: key, length: size, value: value};
+            if (unsupported) { result.payload[tag].raw = raw; result.payload[tag].unsupported_length = true; }
+            if (key === 1) {
+                valid = valueEnd === end && this.verifyCRC(value, size, start * 8);
+                break;
+            }
+        }
+        bits.index = end * 8;
+        if (valid && this.destination) { this.destination.render(result); }
+        return true;
+    };
 
-		var key = this.bits.findNextUniversalKey(); // The 16-byte universal key for UAS LDS is: 06 0E 2B 34 02 0B 01 01 0E 01 03 01 01 00 00 00 
+    DATA.LENGTHS = {1:2, 2:8, 5:2, 6:2, 7:2, 8:1, 9:1,
+        13:4, 14:4, 15:2, 16:2, 17:2, 18:4, 19:4, 20:4, 21:4,
+        22:2, 23:4, 24:4, 25:2, 26:2, 27:2, 28:2, 29:2, 30:2,
+        31:2, 32:2, 33:2, 65:1, 75:2, 82:4, 83:4, 84:4, 85:4,
+        86:4, 87:4, 88:4, 89:4};
 
-		var result = {
-			"universal_key": null,
-			"payload_length": 0,
-			"payload": {}
-		};
-
-		this.bits.rewind(128);
-		var startIndex = this.bits.index; // Save this pointer for checking CRC
-
-		if (key != -1) {
-
-			var buffer = [];
-			for (var i = 0; i < 16; i++) { // We need to read one byte at a time
-				var key = this.bits.read(8);
-				var universalkey = key.toString(16);
-				buffer.push(universalkey);
-			}
-
-			result["universal_key"] = buffer.join('');
-
-			/* 
-			 * Read first bit of BER packet.
-			 * 0 indicates short form length, so just read next 7 bits to determine payload size. 
-			 * 1 indicates long form length, so read next 7 bits to determine number of bytes that make up the length of payload size.
-			 */
-			var msb = this.bits.read(1);
-
-			var payloadlength = 0;
-
-			if (!msb) {
-				payloadlength = this.bits.read(7);
-
-			} else {
-				var numbytes = this.bits.read(7);
-				payloadlength = this.bits.read(8 * numbytes);
-			}
-
-			result["payload_length"] = payloadlength;
-
-			do {
-				var key = this.bits.read(8);
-				if (key == 74) {
-					console.log(key)
-				}
-				var tag = DATA.KLV_METADATA_ELEMENTS[key]
-
-				// Length of v, in bytes. Potentially this could be long form length, but it our encoder seems to only output at values at most 127 bits
-				var length = this.bits.read(8);
-				var value = this.getKLVValue(key, length);
-
-				result["payload"][tag] = {
-					"key": key,
-					"length": length,
-					"value": value
-				};
-
-			} while (key > 1);
-
-			// Per STANAG 4609, if the calculated checksum of the received LDS packet does not mach the checksum stored within the packet, the packet should be discarded.
-			var validCRC = this.verifyCRC(value, length, startIndex);
-
-			// Invoke decode callbacks
-			if (this.destination && validCRC) {
-				this.destination.render(result); // render decoded data to DOM
-			}
-		}
-
-		return 1;
-	};
+    DATA.prototype.readSigned = function(width) {
+        var value = this.bits.read(width);
+        if (width === 16 && value >= 32768) { value -= 65536; }
+        return value === -(Math.pow(2, width - 1)) ? null : value;
+    };
 
 	DATA.prototype.getKLVValue = function(key, length) {
 		switch (key) {
 			case 1: // crc
 				return this.bits.read(16);
-			case 2: // unix timestamp
-				var buffer = [];
-				for (var i = 0; i < length; i++) {
-					buffer.push(('0'+(this.bits.read(8)).toString(16)).slice(-2)); // Read one byte at a time
-				}
-				var unix_timestamp = bigInt(buffer.join(''), 16).toString();
-				return new Date(unix_timestamp / 1000); // Convert from microseconds to milliseconds, and return
+            case 2: // UTC microseconds; divide before converting to Number.
+                var micros = 0n;
+                for (var i = 0; i < 8; i++) { micros = (micros << 8n) | BigInt(this.bits.read(8)); }
+                var date = new Date(Number(micros / 1000n));
+                return Number.isNaN(date.getTime()) ? null : date;
 			case 5:
 				return this.to_lds_platform_heading(this.bits.read(16));
 			case 6:
-				return this.to_lds_platform_pitch(this.bits.read(16));
+				return this.to_lds_platform_pitch(this.readSigned(16));
 			case 7:
-				return this.to_lds_platform_roll(this.bits.read(16));
+				return this.to_lds_platform_roll(this.readSigned(16));
 			case 8:
 				return this.to_lds_platform_true_airspeed(this.bits.read(8));
 			case 9:
 				return this.to_lds_platform_indicated_airspeed(this.bits.read(8));
 			case 13:
-				return this.to_lds_latitude(this.bits.read(32));
+				return this.to_lds_latitude(this.readSigned(32));
 			case 14:
-				return this.to_lds_longitude(this.bits.read(32));
+				return this.to_lds_longitude(this.readSigned(32));
+			case 75:
 			case 15:
 				return this.to_lds_altitude(this.bits.read(16));
 			case 16:
@@ -132,43 +146,44 @@ JSMpeg.Decoder.Metadata = (function() {
 			case 17:
 				return this.to_lds_sensor_vertical_fov(this.bits.read(16));
 			case 18:
-				return this.to_lds_sensor_rel_azimuth_angle(this.bits.read(32));
+				return this.to_lds_sensor_rel_azimuth_angle(this.bits.read(32) >>> 0);
 			case 19:
-				return this.to_lds_rel_elevation_angle(this.bits.read(32));
+				return this.to_lds_rel_elevation_angle(this.readSigned(32));
 			case 20:
-				return this.to_lds_rel_roll_angle(this.bits.read(32));
+				return this.to_lds_rel_roll_angle(this.bits.read(32) >>> 0);
 			case 21:
-				return this.to_lds_slant_range(this.bits.read(32));
+				return this.to_lds_slant_range(this.bits.read(32) >>> 0);
 			case 22:
 				return this.to_lds_target_width(this.bits.read(16));
 			case 23:
-				var lds_dec = this.to_lds_frame_center_latitude(this.bits.read(32));
+				var lds_dec = this.to_lds_frame_center_latitude(this.readSigned(32));
 				DATA.LDS_23 = lds_dec;
 				return lds_dec;
 			case 24:
-				var lds_dec = this.to_lds_frame_center_longitude(this.bits.read(32));
+				var lds_dec = this.to_lds_frame_center_longitude(this.readSigned(32));
 				DATA.LDS_24 = lds_dec;
 				return lds_dec;
 			case 25:
 				return this.to_lds_frame_center_elevation(this.bits.read(16));
 			case 26:
-				return this.to_lds_offset_corner_latitude_point(this.bits.read(16));
+				return this.to_lds_offset_corner_latitude_point(this.readSigned(16));
 			case 27:
-				return this.to_lds_offset_corner_longitude_point(this.bits.read(16));
+				return this.to_lds_offset_corner_longitude_point(this.readSigned(16));
 			case 28:
-				return this.to_lds_offset_corner_latitude_point(this.bits.read(16));
+				return this.to_lds_offset_corner_latitude_point(this.readSigned(16));
 			case 29:
-				return this.to_lds_offset_corner_longitude_point(this.bits.read(16));
+				return this.to_lds_offset_corner_longitude_point(this.readSigned(16));
 			case 30:
-				return this.to_lds_offset_corner_latitude_point(this.bits.read(16));
+				return this.to_lds_offset_corner_latitude_point(this.readSigned(16));
 			case 31:
-				return this.to_lds_offset_corner_longitude_point(this.bits.read(16));
+				return this.to_lds_offset_corner_longitude_point(this.readSigned(16));
 			case 32:
-				return this.to_lds_offset_corner_latitude_point(this.bits.read(16));
+				return this.to_lds_offset_corner_latitude_point(this.readSigned(16));
 			case 33:
-				return this.to_lds_offset_corner_longitude_point(this.bits.read(16));
+				return this.to_lds_offset_corner_longitude_point(this.readSigned(16));
 			case 65:
 				return this.to_uas_lds_version_number(this.bits.read(8));
+			case 3:
 			case 4:
 			case 10:
 			case 11:
@@ -176,35 +191,33 @@ JSMpeg.Decoder.Metadata = (function() {
 			case 59:
 				return this.to_lds_string(length);
 			case 82:
-				return this.to_lds_latitude(this.bits.read(32));
+				return this.to_lds_latitude(this.readSigned(32));
 			case 83:
-				return this.to_lds_longitude(this.bits.read(32));
+				return this.to_lds_longitude(this.readSigned(32));
 			case 84:
-				return this.to_lds_latitude(this.bits.read(32));
+				return this.to_lds_latitude(this.readSigned(32));
 			case 85:
-				return this.to_lds_longitude(this.bits.read(32));
+				return this.to_lds_longitude(this.readSigned(32));
 			case 86:
-				return this.to_lds_latitude(this.bits.read(32));
+				return this.to_lds_latitude(this.readSigned(32));
 			case 87:
-				return this.to_lds_longitude(this.bits.read(32));
+				return this.to_lds_longitude(this.readSigned(32));
 			case 88:
-				return this.to_lds_latitude(this.bits.read(32));
+				return this.to_lds_latitude(this.readSigned(32));
 			case 89:
-				return this.to_lds_longitude(this.bits.read(32));
+				return this.to_lds_longitude(this.readSigned(32));
 			default:
-				this.bits.read(length << 3);
-				return -1;
+				var raw = [];
+                for (var i = 0; i < length; i++) { raw.push(this.bits.read(8).toString(16).padStart(2, '0')); }
+                return raw.join('');
 		}
 	}
 
-	DATA.prototype.to_lds_string = function(numbytes) {
-		var string_buffer = []
-		for (var i = 0; i < numbytes; i++) {
-			var byte = this.bits.read(8);
-			string_buffer.push(String.fromCharCode(byte))
-		}
-		return string_buffer.join('');
-	}
+    DATA.prototype.to_lds_string = function(numbytes) {
+        var bytes = new Uint8Array(numbytes);
+        for (var i = 0; i < numbytes; i++) { bytes[i] = this.bits.read(8); }
+        return new TextDecoder('utf-8').decode(bytes);
+    };
 
 	// Convert int16 to LDS platform heading
 	DATA.prototype.to_lds_platform_heading = function(lds_int) {
@@ -213,11 +226,13 @@ JSMpeg.Decoder.Metadata = (function() {
 
 	// Convert int16 to LDS platform pitch
 	DATA.prototype.to_lds_platform_pitch = function(lds_int) {
+        if (lds_int === null) { return null; }
 		return (40 / 65534) * lds_int;
 	}
 
 	// Convert int16 to LDS platform roll
 	DATA.prototype.to_lds_platform_roll = function(lds_int) {
+        if (lds_int === null) { return null; }
 		return (100 / 65534) * lds_int;
 	}
 
@@ -233,11 +248,13 @@ JSMpeg.Decoder.Metadata = (function() {
 
 	// Convert int32 latitude to degrees latitude
 	DATA.prototype.to_lds_latitude = function(lds_int) {
+        if (lds_int === null) { return null; }
 		return 180 / 0xFFFFFFFE * lds_int;
 	}
 
 	// Convert int32 longitude to degrees longitude
 	DATA.prototype.to_lds_longitude = function(lds_int) {
+        if (lds_int === null) { return null; }
 		return 360 / 0xFFFFFFFE * lds_int;
 	}
 
@@ -263,6 +280,7 @@ JSMpeg.Decoder.Metadata = (function() {
 
 	// Convert int32 to LDS sensor relative elevation angle
 	DATA.prototype.to_lds_rel_elevation_angle = function(lds_int) {
+        if (lds_int === null) { return null; }
 		return 360 / 0XFFFFFFFE * lds_int;
 	}
 
@@ -283,26 +301,30 @@ JSMpeg.Decoder.Metadata = (function() {
 
 	// Convert int32 to LDS frame center latitude
 	DATA.prototype.to_lds_frame_center_latitude = function(lds_int) {
+        if (lds_int === null) { return null; }
 		return 180 / 0xFFFFFFFE * lds_int;
 	}
 
 	// Convert int32 to LDS frame center longitude
 	DATA.prototype.to_lds_frame_center_longitude = function(lds_int) {
+        if (lds_int === null) { return null; }
 		return 360 / 0xFFFFFFFE * lds_int;
 	}
 
 	// Convert int16 to LDS frame center elevation
 	DATA.prototype.to_lds_frame_center_elevation = function(lds_int) {
-		return (190 / 0xFFFF * lds_int) - 900;
+		return (19900 / 0xFFFF * lds_int) - 900;
 	}
 
 	// Convert int16 to LDS offset corner latitude point 1 to 4
 	DATA.prototype.to_lds_offset_corner_latitude_point = function(lds_int, lds23) {
+        if (lds_int === null) { return null; }
 		return 0.15 / 65534 * lds_int;
 	}
 
 	// Convert int16 to LDS offset corner latitude point 1 to 4
 	DATA.prototype.to_lds_offset_corner_longitude_point = function(lds_int, lds24) {
+        if (lds_int === null) { return null; }
 		return 0.15 / 65534 * lds_int;
 	}
 
@@ -311,10 +333,10 @@ JSMpeg.Decoder.Metadata = (function() {
 		return lds_int;
 	}
 
-	/* The paylod checksum is a running 16-bit sum through the entire LDS packet starting with the 16 byte Local Data Set key 
-	 * and ending with summing the 2 byte length field of the checksum data item (but not it's value). 
-	 * This is slighly inefficiently, since we are re-scanning the LDS packet. 
-	 * It would be better to maintain a sum as we read the LDS packet. 
+	/* The paylod checksum is a running 16-bit sum through the entire LDS packet starting with the 16 byte Local Data Set key
+	 * and ending with summing the 2 byte length field of the checksum data item (but not it's value).
+	 * This is slighly inefficiently, since we are re-scanning the LDS packet.
+	 * It would be better to maintain a sum as we read the LDS packet.
 	 */
 	DATA.prototype.verifyCRC = function(checksum, length, startIndex) {
 		var endIndex = this.bits.index; // save pointer to current index
@@ -413,6 +435,7 @@ JSMpeg.Decoder.Metadata = (function() {
 		71: "alternate_platform_heading",
 		72: "event_start_time_utc",
 		73: "remote_video_terminal_lds_conversion",
+        75: "sensor_ellipsoid_height",
 		82: "corner_latitude_point_1",
 		83: "corner_longitude_point_1",
 		84: "corner_latitude_point_2",

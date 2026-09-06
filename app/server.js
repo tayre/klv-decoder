@@ -1,178 +1,45 @@
-// node server.js --public 
-(function() {
-    'use strict';
-    var host = "localhost"
-    var express = require('express');
-    var compression = require('compression');
-    var url = require('url');
-    var request = require('request');
-
-    var yargs = require('yargs').options({
-        'port' : {
-            'default' : 8085,
-            'description' : 'Port to listen on.'
-        },
-        'public' : {
-            'type' : 'boolean',
-            'description' : 'Run a public server that listens on all interfaces.'
-        },
-        'upstream-proxy' : {
-            'description' : 'A standard proxy server that will be used to retrieve data.  Specify a URL including port, e.g. "http://proxy:8000".'
-        },
-        'bypass-upstream-proxy-hosts' : {
-            'description' : 'A comma separated list of hosts that will bypass the specified upstream_proxy, e.g. "lanhost1,lanhost2"'
-        },
-        'help' : {
-            'alias' : 'h',
-            'type' : 'boolean',
-            'description' : 'Show this help.'
-        }
-    });
-    var argv = yargs.argv;
-
-    if (argv.help) {
-        return yargs.showHelp();
-    }
-
-    // eventually this mime type configuration will need to change
-    // https://github.com/visionmedia/send/commit/d2cb54658ce65948b0ed6e5fb5de69d022bef941
-    // *NOTE* Any changes you make here must be mirrored in web.config.
-    var mime = express.static.mime;
-    mime.define({
-        'application/json' : ['czml', 'json', 'geojson', 'topojson'],
-        'image/crn' : ['crn'],
-        'image/ktx' : ['ktx'],
-        'model/gltf+json' : ['gltf'],
-        'model/gltf.binary' : ['bgltf', 'glb'],
-        'text/plain' : ['glsl']
-    });
-
-    var app = express();
-    app.use(compression());
-    app.use(function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-        next();
-    });
-    app.use(express.static(__dirname));
-
-    function getRemoteUrlFromParam(req) {
-        var remoteUrl = req.params[0];
-        if (remoteUrl) {
-            // add http:// to the URL if no protocol is present
-            if (!/^https?:\/\//.test(remoteUrl)) {
-                remoteUrl = 'http://' + remoteUrl;
-            }
-            remoteUrl = url.parse(remoteUrl);
-            // copy query string
-            remoteUrl.search = url.parse(req.url).search;
-        }
-        return remoteUrl;
-    }
-
-    var dontProxyHeaderRegex = /^(?:Host|Proxy-Connection|Connection|Keep-Alive|Transfer-Encoding|TE|Trailer|Proxy-Authorization|Proxy-Authenticate|Upgrade)$/i;
-
-    function filterHeaders(req, headers) {
-        var result = {};
-        // filter out headers that are listed in the regex above
-        Object.keys(headers).forEach(function(name) {
-            if (!dontProxyHeaderRegex.test(name)) {
-                result[name] = headers[name];
-            }
-        });
-        return result;
-    }
-
-    var upstreamProxy = argv['upstream-proxy'];
-    var bypassUpstreamProxyHosts = {};
-    if (argv['bypass-upstream-proxy-hosts']) {
-        argv['bypass-upstream-proxy-hosts'].split(',').forEach(function(host) {
-            bypassUpstreamProxyHosts[host.toLowerCase()] = true;
-        });
-    }
-
-    app.get('/proxy/*', function(req, res, next) {
-        // look for request like http://localhost:8080/proxy/http://example.com/file?query=1
-        var remoteUrl = getRemoteUrlFromParam(req);
-        if (!remoteUrl) {
-            // look for request like http://localhost:8080/proxy/?http%3A%2F%2Fexample.com%2Ffile%3Fquery%3D1
-            remoteUrl = Object.keys(req.query)[0];
-            if (remoteUrl) {
-                remoteUrl = url.parse(remoteUrl);
-            }
-        }
-
-        if (!remoteUrl) {
-            return res.status(400).send('No url specified.');
-        }
-
-        if (!remoteUrl.protocol) {
-            remoteUrl.protocol = 'http:';
-        }
-
-        var proxy;
-        if (upstreamProxy && !(remoteUrl.host in bypassUpstreamProxyHosts)) {
-            proxy = upstreamProxy;
-        }
-
-        // encoding : null means "body" passed to the callback will be raw bytes
-
-        request.get({
-            url : url.format(remoteUrl),
-            headers : filterHeaders(req, req.headers),
-            encoding : null,
-            proxy : proxy
-        }, function(error, response, body) {
-            var code = 500;
-
-            if (response) {
-                code = response.statusCode;
-                res.header(filterHeaders(req, response.headers));
-            }
-
-            res.status(code).send(body);
-        });
-    });
-
-    
-    var server = app.listen(argv.port, argv.public ? undefined : host, function() {
-        if (argv.public) {
-            console.log('Development server running publicly. Connect to http://%s:%d/', host, server.address().port);
-        } else {
-            console.log('Development server running locally. Connect to http://%s:%d/', host, server.address().port);
-        }
-    });
-
-    server.on('error', function (e) {
-        if (e.code === 'EADDRINUSE') {
-            console.log('Error: Port %d is already in use, select a different port.', argv.port);
-            console.log('Example: node server.js --port %d', argv.port + 1);
-        } else if (e.code === 'EACCES') {
-            console.log('Error: This process does not have permission to listen on port %d.', argv.port);
-            if (argv.port < 1024) {
-                console.log('Try a port number higher than 1024.');
-            }
-        }
-        console.log(e);
-        process.exit(1);
-    });
-
-    server.on('close', function() {
-        console.log('Development server stopped.');
-    });
-
-    var isFirstSig = true;
-    process.on('SIGINT', function() {
-        if (isFirstSig) {
-            console.log('Development server shutting down.');
-            server.close(function() {
-              process.exit(0);
-            });
-            isFirstSig = false;
-        } else {
-            console.log('Development server force kill.');
-            process.exit(1);
-        }
-    });
-
-})();
+'use strict';
+const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
+const { parseArgs } = require('node:util');
+const root = path.join(__dirname, 'www');
+const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8',
+  '.css':'text/css', '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg',
+  '.svg':'image/svg+xml', '.wasm':'application/wasm', '.glb':'model/gltf-binary',
+  '.gltf':'model/gltf+json', '.woff':'font/woff', '.woff2':'font/woff2' };
+function createServer() {
+  return http.createServer(async (req, res) => {
+    if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, {Allow:'GET, HEAD'}); return res.end(); }
+    let pathname;
+    try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
+    catch { res.writeHead(400); return res.end('Invalid URL'); }
+    // Keep the old /www/ links working, but serve only public assets.
+    if (pathname.startsWith('/www/')) { pathname = pathname.slice(4); }
+    if (pathname === '/') { pathname = '/index.html'; }
+    const file = path.resolve(root, '.' + pathname);
+    if (!file.startsWith(root + path.sep) || pathname.includes('\0')) { res.writeHead(403); return res.end(); }
+    try {
+      const stat = await fs.promises.stat(file);
+      if (!stat.isFile()) { res.writeHead(404); return res.end(); }
+      res.writeHead(200, { 'Content-Type':types[path.extname(file)] || 'application/octet-stream',
+        'Content-Length':stat.size, 'X-Content-Type-Options':'nosniff' });
+      if (req.method === 'HEAD') { return res.end(); }
+      const stream = fs.createReadStream(file);
+      stream.on('error', () => res.destroy());
+      res.on('close', () => stream.destroy());
+      stream.pipe(res);
+    } catch { res.writeHead(404); res.end('Not found. Run npm run build before starting the viewer.'); }
+  });
+}
+if (require.main === module) {
+  const {values} = parseArgs({options:{port:{type:'string',default:process.env.PORT || '8085'}, public:{type:'boolean'},help:{type:'boolean'}}});
+  if (values.help) { console.log('node server.js [--port 8085] [--public]'); }
+  else {
+    const server = createServer();
+    server.on('error', error => { console.error(error.message); process.exitCode = 1; });
+    server.listen(Number(values.port), values.public ? '0.0.0.0' : '127.0.0.1', () => console.log(`Viewer: http://127.0.0.1:${server.address().port}`));
+    for (const signal of ['SIGINT','SIGTERM']) { process.on(signal, () => server.close()); }
+  }
+}
+module.exports = {createServer};
