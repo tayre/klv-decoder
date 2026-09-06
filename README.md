@@ -163,11 +163,3 @@ The decoder still implements a subset of ST 0601 fields and the JSMpeg path stil
 
 ### Example Video with KLV metadata
 - http://samples.ffmpeg.org/MPEG2/mpegts-klv/Day%20Flight.mpg
-
-### Industrial and defense integration assessment
-
-See the [readiness sweep](docs/readiness-sweep.md) for supported workflows,
-verification evidence, and remaining interoperability requirements. The decoder
-can inspect metadata independently of video; the viewer remains a development
-and diagnostic application. The original experiment and flight notes above
-remain the background for this project.

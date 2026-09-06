@@ -1,7 +1,6 @@
 # Industry-readiness review
 
 Historical review of the first decoder extraction (baseline `75517c3`, shipped in `9d7de37`).
-See [the follow-up readiness sweep](readiness-sweep.md) for current findings and verification.
 
 ## Assessment
 
@@ -110,8 +109,6 @@ with a baseline checkout, or omit the argument for the current implementation.
 
 The revised browser configuration subsequently passed hosted Linux CI in
 `9d7de37` and `9a87b64`, including both Node versions and browser tests.
-The follow-up sweep records newer local verification separately; those results
-must not be confused with a hosted run of uncommitted changes.
 
 ## Remaining adoption gates, in priority order
 
@@ -140,7 +137,7 @@ must not be confused with a hosted run of uncommitted changes.
    arbitrary hostile video.
 5. **Reusable release discipline.** Package/version the standalone decoder,
    define compatibility guarantees, automate declaration checks with a TypeScript
-   consumer (manually verified in the follow-up sweep), broaden the OS/browser matrix, and publish compatibility fixtures
+   consumer (manually verified with TypeScript 7.0.2), broaden the OS/browser matrix, and publish compatibility fixtures
    and a supported-standard/version matrix. No npm release was made here.
 
 A sensible next milestone is a metadata-only library release for a small,
