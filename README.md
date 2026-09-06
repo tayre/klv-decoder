@@ -43,8 +43,11 @@ We also have a small Node webserver to serve the built assets from `app/www`. It
 To establish a stream from the camera to the websocket server, we [map](https://trac.ffmpeg.org/wiki/Map) our video and data feeds. Since JSMpeg only supports playback of mpeg1, we need to be explicit in our codec choice as well.
 
 ```bash
-ffmpeg -i rtsp://{camera_source_url} -map 0:v:0 -map 0:d:0 -f mpegts -c:v mpeg1video -c:d copy -b:v 800k -r 25 -s 800x600 -bf 0 http://127.0.0.1:8081/secretkey
+cd app
+STREAM_URL=rtsp://{camera_source_url} npm run dev
 ```
+
+The launcher uses those FFmpeg mappings and pipes the output through Node to the relay, keeping the relay secret out of FFmpeg’s command line.
 
 As noted in the JSMpeg [docs](https://github.com/phoboslab/jsmpeg/blob/master/src/jsmpeg.js), the [player](app/src/jsmpeg/player.js) sets up the connections between the source, demuxer, decoders, and renderer. In order to extend JSMpeg to accept a data stream we subscribe the demuxer to the correct stream identifier (per the STANAG spec it is _0xBD_), implement the decoder, and then send the resultant data to the renderer.
 
@@ -129,7 +132,7 @@ npm start                         # http://127.0.0.1:8085
 STREAM_SECRET=your-secret npm run relay
 ```
 
-Send the FFmpeg stream to `http://127.0.0.1:8081/your-secret`. The secret must use letters, numbers, underscores or hyphens. A relay accepts one producer at a time. `npm start` only serves the viewer; it does not start a stream.
+For camera streaming, prefer `npm run dev`: it forwards FFmpeg output without putting the relay secret in process arguments. Direct HTTP producers still POST to the secret path, but should keep that URL out of command lines and logs. Supply `STREAM_SECRET` through your service environment; avoid typing real secrets into saved shell history. Positional relay secrets are rejected. Environment variables do not protect against privileged inspection of the running process. The secret must use letters, numbers, underscores or hyphens. A relay accepts one producer at a time. `npm start` only serves the viewer; it does not start a stream.
 
 `PORT`, `STREAM_PORT`, and `WS_PORT` override ports 8085, 8081, and 8082. `HOST=0.0.0.0 npm run dev` exposes the launcher services on the LAN. Browser viewers are not authenticated: use this as a local development tool or put authentication/TLS in front of it before sharing it beyond a trusted network.
 

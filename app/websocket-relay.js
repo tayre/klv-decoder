@@ -31,7 +31,11 @@ function createRelay({secret, streamPort=8081, websocketPort=8082, host='127.0.0
   }};
 }
 if (require.main === module) {
-  const relay = createRelay({secret:process.argv[2] || process.env.STREAM_SECRET,
+  if (process.argv[2]) {
+    console.error('Command-line secrets are no longer accepted. Set STREAM_SECRET in the environment.');
+    process.exit(1);
+  }
+  const relay = createRelay({secret:process.env.STREAM_SECRET,
     streamPort:Number(process.argv[3] || process.env.STREAM_PORT || 8081),
     websocketPort:Number(process.argv[4] || process.env.WS_PORT || 8082), host:process.env.HOST || '127.0.0.1'});
   for (const server of [relay.server, relay.sockets]) server.on('error', error => { console.error(error.message); process.exit(1); });

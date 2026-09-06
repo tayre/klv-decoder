@@ -1,11 +1,12 @@
 'use strict';
-const {spawnSync,spawn}=require('node:child_process');
+const {spawnSync}=require('node:child_process');
 const {randomBytes}=require('node:crypto');
 const path=require('node:path');
 const {once}=require('node:events');
 const {createServer}=require('../server');
 const {createRelay}=require('../websocket-relay');
 const {startDemo}=require('./demo-stream');
+const {startCamera}=require('./camera-stream');
 async function main(){
   const demo=process.argv.includes('--demo');
   if(process.argv.includes('--help')){console.log('npm run demo | STREAM_URL=rtsp://camera/... npm run dev\nOptional: PORT, STREAM_PORT, WS_PORT, STREAM_SECRET, HOST (default 127.0.0.1)');return;}
@@ -33,10 +34,7 @@ async function main(){
   const url=`http://${ingestHost}:${relay.server.address().port}/${secret}`;
   if(demo)stopSource=startDemo({url,onError:failure});
   else {
-    const ffmpeg=spawn('ffmpeg',['-hide_banner','-loglevel','warning','-i',input,'-map','0:v:0','-map','0:d:0',
-      '-c:v','mpeg1video','-c:d','copy','-an','-b:v','800k','-r','25','-s','800x600','-bf','0','-f','mpegts',url],{stdio:'inherit'});
-    ffmpeg.on('error',failure);ffmpeg.on('exit',code=>{if(!closing)failure(new Error(`FFmpeg exited (${code})`));});
-    stopSource=()=>ffmpeg.kill('SIGTERM');
+    stopSource=startCamera({input,url,onError:failure});
   }
   const ws=relay.sockets.address().port;
   console.log(`Open http://127.0.0.1:${server.address().port}/?stream=ws://127.0.0.1:${ws}/`);
