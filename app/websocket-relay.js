@@ -31,9 +31,9 @@ function createRelay({secret, streamPort=8081, websocketPort=8082, host='127.0.0
   }};
 }
 if (require.main === module) {
-  const relay = createRelay({secret:process.argv[2] || process.env.STREAM_SECRET,
-    streamPort:Number(process.argv[3] || process.env.STREAM_PORT || 8081),
-    websocketPort:Number(process.argv[4] || process.env.WS_PORT || 8082), host:process.env.HOST || '127.0.0.1'});
+  const relay = createRelay({secret:process.env.STREAM_SECRET,
+    streamPort:Number(process.env.STREAM_PORT || 8081),
+    websocketPort:Number(process.env.WS_PORT || 8082), host:process.env.HOST || '127.0.0.1'});
   for (const server of [relay.server, relay.sockets]) server.on('error', error => { console.error(error.message); process.exit(1); });
   relay.server.on('listening', () => console.log(`Stream input: http://127.0.0.1:${relay.server.address().port}/<secret>`));
   relay.sockets.on('listening', () => console.log(`WebSocket: ws://127.0.0.1:${relay.sockets.address().port}`));
