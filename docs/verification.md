@@ -101,3 +101,31 @@ been tested end to end. The default offline globe is intentionally low
 resolution and uses ellipsoid terrain. The relay is a local development
 service; WebSocket viewers are not authenticated. Node 22/Linux/Windows are
 configured or supported by the tooling but were not locally executed here.
+
+## Dependency security update (2026-11-08)
+
+Upgraded Cesium from 1.145.0 to 1.147.0. Its prebuilt browser bundle includes
+DOMPurify 3.4.17, which fixes the
+[reported sanitizer vulnerabilities](https://github.com/cure53/DOMPurify/releases/tag/3.4.17).
+Both the installed dependency and the generated `www/vendor/cesium/Cesium.js`
+contain 3.4.17. A lockfile-only DOMPurify update would not replace the copy
+embedded in Cesium's prebuilt JavaScript.
+
+The build now removes the old generated Cesium assets before copying the new
+release. An obsolete-file probe confirmed old chunks are removed. A Node
+regression test checks the DOMPurify version in the generated browser bundle
+and rejects versions older than 3.4.17. The documented and declared minimum
+Node.js version is now 22.17.0, matching Cesium's requirement.
+
+Verified on macOS with Node 22.23.1, Chrome 156.0.8078.81, and FFmpeg 6.0:
+
+- Clean `npm ci`: passed.
+- `npm audit --audit-level=low`: zero known vulnerabilities.
+- `npm run check`: build and all 62 Node tests passed.
+- `npm run test:browser`: all four tests passed using local Chrome via
+  `CHROME_PATH`. These cover the offline globe and camera controls, advancing
+  video, raw telemetry, experimental video material, burst updates, and stale
+  telemetry. The viewer screenshot was also inspected.
+
+These browser checks use the synthetic feed; they do not validate a physical
+camera or external imagery/terrain providers. Hosted CI was not run in this pass.

@@ -67,7 +67,7 @@ Decoded packets go to `packets.jsonl`; diagnostics and counters go to stderr.
 
 # Quick start
 
-You need Node.js 22 or newer and FFmpeg on your PATH. From the repository root:
+You need Node.js 22.17.0 or newer and FFmpeg on your PATH. From the repository root:
 
 ```bash
 cd app
