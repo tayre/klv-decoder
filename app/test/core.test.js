@@ -100,3 +100,17 @@ test('unverified schemas and undecoded security sets are explicit',()=>{
  assert.ok(d.packets[0].warnings.some(w=>w.code==='undecoded_field' && w.tag===48));
  assert.equal(d.packets[0].payload.security_local_metadata_set.raw,'010101');
 });
+
+test('checksum bytes must be a separate field, not part of another value', () => {
+ // The last field claims all four trailing checksum bytes as its own value.
+ // The packet still has a valid numerical checksum.
+ const malformed=packet([timestamp,Buffer.from([100,4])]);
+ for (const strict of [false,true]) {
+  const d=create({strict});
+  d.decoder.push(malformed);
+  assert.equal(d.packets.length,0);
+  assert.equal(d.errors[0].code,'missing_checksum');
+  d.decoder.push(valid);
+  assert.equal(d.packets.length,1);
+ }
+});

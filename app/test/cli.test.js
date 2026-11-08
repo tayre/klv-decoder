@@ -30,3 +30,23 @@ test('TS exporter refuses implicit PID selection and invalid formats',()=>{
   const result=spawnSync(process.execPath,[cli,...args,'-'],{input:'',encoding:'utf8'});assert.equal(result.status,1);assert.equal(result.stdout,'');
  }
 });
+
+test('exporter handles a closed output pipe without an uncaught stream error', async () => {
+ const {spawn}=require('node:child_process');
+ const {once}=require('node:events');
+ const child=spawn(process.execPath,[cli,'-'],{stdio:['pipe','pipe','pipe']});
+ const closed=once(child,'close');
+ let stderr='';
+ child.stderr.setEncoding('utf8');
+ child.stderr.on('data',chunk=>{stderr+=chunk;});
+ // Close the reader before sending enough packets to force an output write.
+ child.stdout.destroy();
+ child.stdin.on('error',()=>{});
+ const packet=require('node:fs').readFileSync(path.join(__dirname,'fixtures/day-flight.klv'));
+ child.stdin.end(Buffer.concat(Array(1000).fill(packet)));
+ const [code,signal]=await closed;
+ assert.equal(signal,null);
+ assert.equal(code,1,stderr);
+ assert.doesNotMatch(stderr,/Unhandled 'error' event|node:internal/);
+ assert.match(stderr,/EPIPE|premature close/i);
+});

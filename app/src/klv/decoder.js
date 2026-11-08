@@ -289,6 +289,9 @@
                 pos=length.next+length.value;
                 if(tag===1 && pos!==bytes.length)return reject('checksum_not_last');
             }
+            // A matching checksum suffix can also occur inside another field's
+            // value. Require the parser to have consumed an actual checksum TLV.
+            if(!seen.has(1))return reject('missing_checksum');
             if(!seen.has(2))warnings.push({code:'missing_timestamp'});
             const version=payload.uas_lds_version_number?.value;
             if(version===undefined)warnings.push({code:'missing_version',tag:65});
