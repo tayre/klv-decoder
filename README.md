@@ -1,16 +1,69 @@
-# Introduction
+# KLV Decoder and UAV Viewer
 
-This sample application was constructed an exercise to understand how video data streams can be sent an UAV quadcopter camera to a web browser. This [page](http://impleotv.com/2017/02/17/klv-encoded-metadata-in-stanag-4609-streams/) provides a good primer on [KLV](https://en.wikipedia.org/wiki/KLV) encoded data in [STANAG 4609](http://www.gwg.nga.mil/misb/docs/nato_docs/STANAG_4609_Ed3.pdf).
+This repository is a JavaScript toolkit for reading UAV (drone) telemetry encoded
+as KLV (Key-Length-Value) metadata, plus a browser demo that displays the video,
+decoded telemetry, and an aircraft on a Cesium 3D globe. It began as an experiment
+in streaming camera video and metadata to a browser and now also provides a
+standalone decoder and command-line export tools.
 
-Once we can read incoming metadata in the browser, we can do interesting things such as displaying our UAV in [Cesium](https://github.com/AnalyticalGraphicsInc/cesium), which is a JavaScript library for creating WebGL globes and time-dynamic content (i.e, a flying quadcopter!)
+## What you can do with it
 
-In order for this to be compelling we need to minimize video latency from the video source to the browser.  The [JSMpeg](https://github.com/phoboslab/jsmpeg) project does a lot of the heavy lifting for getting the mpeg transport stream to the client, and rendering the video (and mp2 audio if present). We extend this project by adding a KLV decoder, and a simple rendering of the decoded data as JSON.
+- **Decode telemetry in Node.js or a browser.** The dependency-free decoder reads
+  a subset of MISB ST 0601 UAS Local Data Set fields, including timestamps,
+  position, altitude, and attitude. It handles fragmented input, validates
+  checksums, reports diagnostics, and preserves unsupported fields as raw hex.
+- **Export metadata as JSON Lines.** Read raw KLV files or extract metadata from
+  supported MPEG transport streams with an explicitly selected metadata PID.
+  Metadata-only extraction does not require video playback or transcoding.
+- **Explore a live UAV feed.** FFmpeg supplies MPEG-1 video and KLV metadata to a
+  Node.js HTTP/WebSocket relay. The browser uses an extended JSMpeg player for
+  video and metadata, then updates the telemetry display and Cesium globe.
+- **Try it without a camera.** The synthetic demo generates a moving test pattern
+  and flight telemetry, with bundled globe imagery for offline viewing after
+  installation.
 
-TL;DR jump to the [demo videos](#demoarea).
+The live viewer's data flow is:
 
-For integration work, see the [standalone decoder API](docs/decoder-api.md),
-[supported fields](docs/supported-fields.md), and [industry-readiness review](docs/industry-review.md).
-The original browser demo remains below.
+```text
+Camera → FFmpeg → Node.js relay → WebSocket → JSMpeg in the browser
+                                              ├─ Video → canvas
+                                              └─ KLV decoder → telemetry + Cesium
+```
+
+This is a diagnostic and integration starting point. It does not implement all
+MISB/STANAG fields or carriage formats, promise frame-accurate video/metadata
+synchronization, or provide survey-grade camera geolocation. The viewer requires
+MPEG-1 video; the metadata-only TS exporter supports 188-byte transport packets
+with private PES stream ID `0xBD` and an explicit PID. The standalone decoder can
+also consume raw KLV extracted by another media stack.
+
+## Repository map
+
+| Path | Purpose |
+| --- | --- |
+| [`app/src/klv/`](app/src/klv/) | Standalone decoder and TypeScript declarations |
+| [`app/src/jsmpeg/`](app/src/jsmpeg/) | Vendored JSMpeg player, transport demuxer, and metadata adapter |
+| [`app/src/uav/main.js`](app/src/uav/main.js) | Cesium viewer and telemetry UI |
+| [`app/scripts/`](app/scripts/) | Build, launch, demo, camera ingest, export, and diagnostic tools |
+| [`app/server.js`](app/server.js), [`app/websocket-relay.js`](app/websocket-relay.js) | Static web server and stream relay |
+| [`app/www/`](app/www/) | Viewer pages, styles, and model assets |
+| [`app/test/`](app/test/) | Node and browser tests, plus a recorded KLV fixture |
+| [`docs/`](docs/) | Decoder API, field coverage, verification, and readiness notes |
+
+For integration work, start with the [standalone decoder API](docs/decoder-api.md)
+and [supported fields](docs/supported-fields.md). The
+[industry-readiness review](docs/industry-review.md) records an earlier assessment
+and remaining adoption work. The original experiment's implementation notes and
+[demo videos](#demoarea) are preserved below.
+
+To try metadata decoding without installing the viewer dependencies, run this
+from the repository root with Node.js 22 or newer:
+
+```bash
+node app/scripts/decode-klv.js app/test/fixtures/day-flight.klv > packets.jsonl
+```
+
+Decoded packets go to `packets.jsonl`; diagnostics and counters go to stderr.
 
 # Quick start
 
