@@ -34,7 +34,8 @@ test('TS exporter refuses implicit PID selection and invalid formats',()=>{
 test('exporter handles a closed output pipe without an uncaught stream error', async () => {
  const {spawn}=require('node:child_process');
  const {once}=require('node:events');
- const child=spawn(process.execPath,[cli,'-'],{stdio:['pipe','pipe','pipe']});
+ for (const output of ['jsonl','summary','csv','geojson']) {
+ const child=spawn(process.execPath,[cli,'--output',output,'-'],{stdio:['pipe','pipe','pipe']});
  const closed=once(child,'close');
  let stderr='';
  child.stderr.setEncoding('utf8');
@@ -49,4 +50,5 @@ test('exporter handles a closed output pipe without an uncaught stream error', a
  assert.equal(code,1,stderr);
  assert.doesNotMatch(stderr,/Unhandled 'error' event|node:internal/);
  assert.match(stderr,/EPIPE|premature close/i);
+ }
 });

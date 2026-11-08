@@ -12,9 +12,11 @@ standalone decoder and command-line export tools.
   a subset of MISB ST 0601 UAS Local Data Set fields, including timestamps,
   position, altitude, and attitude. It handles fragmented input, validates
   checksums, reports diagnostics, and preserves unsupported fields as raw hex.
-- **Export metadata as JSON Lines.** Read raw KLV files or extract metadata from
-  supported MPEG transport streams with an explicitly selected metadata PID.
-  Metadata-only extraction does not require video playback or transcoding.
+- **Inspect recordings and export telemetry.** Summarize timing, field coverage,
+  and errors, or export JSON Lines, CSV, and GeoJSON sensor positions. Read raw
+  KLV files or supported MPEG transport streams with an explicitly selected
+  metadata PID. Metadata-only extraction does not require video playback or
+  transcoding.
 - **Explore a live UAV feed.** FFmpeg supplies MPEG-1 video and KLV metadata to a
   Node.js HTTP/WebSocket relay. The browser uses an extended JSMpeg player for
   video and metadata, then updates the telemetry display and Cesium globe.
@@ -64,6 +66,23 @@ node app/scripts/decode-klv.js app/test/fixtures/day-flight.klv > packets.jsonl
 ```
 
 Decoded packets go to `packets.jsonl`; diagnostics and counters go to stderr.
+
+To inspect the same sample or use its telemetry in a spreadsheet or map:
+
+```bash
+node app/scripts/decode-klv.js --summary app/test/fixtures/day-flight.klv
+node app/scripts/decode-klv.js --output csv app/test/fixtures/day-flight.klv > flight.csv
+node app/scripts/decode-klv.js --output geojson app/test/fixtures/day-flight.klv > positions.geojson
+```
+
+The summary reports the timestamp range, mean packet rate, observed fields,
+warnings, and rejection counts. CSV includes common telemetry columns plus the
+full payload. GeoJSON emits timestamped sensor-position points with HAE and MSL
+altitude recorded separately; missing positions are counted and skipped.
+
+For a transport-stream recording, add `--format ts --pid YOUR_METADATA_PID`.
+There is no automatic stream discovery. See [recording summary and export](docs/decoder-api.md#recording-summary-and-export)
+for column definitions, timestamp handling, and exit codes.
 
 # Quick start
 

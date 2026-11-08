@@ -86,6 +86,102 @@ node scripts/decode-klv.js --strict recording.klv > packets.jsonl
 The exporter applies stdout backpressure between input chunks, writes
 errors/counters to stderr, and exits 0 for decoded input without rejections,
 1 for no packets or an I/O/usage failure, and 2 when packets were rejected.
+
+## Recording summary and export
+
+`--format klv|ts` selects the input format; `--output jsonl|summary|csv|geojson`
+selects the output. The default is the existing JSONL packet representation.
+`--summary` is shorthand for `--output summary` and cannot be combined with
+another output format. All modes accept a file or `-` for stdin.
+
+```sh
+# From app/; the fixture works without installing the viewer dependencies.
+node scripts/decode-klv.js --summary test/fixtures/day-flight.klv
+node scripts/decode-klv.js --output csv recording.klv > flight.csv
+node scripts/decode-klv.js --output geojson recording.klv > positions.geojson
+node scripts/decode-klv.js --format ts --pid 0x102 --summary recording.ts
+```
+
+### Summary
+
+Summary writes one readable JSON object to stdout at EOF. It contains:
+
+- The input format and selected metadata PID (`null` for raw KLV).
+- Decoder `stats`, including accepted/rejected counts and errors by code;
+  TS input also includes transport counters.
+- The earliest/latest valid UTC timestamps and their exact decimal microseconds,
+  duration in seconds, and mean packet rate. The rate is
+  `(timestamped packets - 1) / timestamp range in seconds`; it is `null` when
+  there is no positive time span. Duration is `null` without valid timestamps
+  and zero for a single timestamp. This is an average over accepted packets,
+  not an estimate of the source's nominal rate or video frame rate.
+- Missing/invalid timestamp counts and the number of timestamps that moved
+  backward relative to the preceding valid timestamp in input order.
+- Valid and missing/invalid sensor-position counts, warning counts by code,
+  and observed fields sorted by numeric tag. Each field has counts of packets,
+  successfully decoded values, undecoded values, invalid values, and unsupported
+  widths (a subset of invalid values). Warning counts count occurrences; one
+  packet can contribute multiple warnings of the same type.
+
+Field and timing statistics cover accepted packets only. Rejected candidates
+are counted separately in `stats`. Summary retains counters per observed tag,
+not the full recording. For TS input it summarizes only the explicitly selected
+PID; it does not discover available programs or streams.
+
+### CSV
+
+CSV has a fixed header and one row per accepted packet, in input order. Columns
+include exact UTC timestamps with six fractional digits, decimal microseconds,
+transport PTS, metadata-stream byte offset, mission ID, platform tail number,
+sensor latitude/longitude, HAE and MSL altitude, platform heading/pitch/roll,
+ground speed, and frame-center latitude/longitude. Full-angle pitch/roll are
+preferred when valid, with legacy-angle fallback. Units are included in column
+names (`_deg`, `_m`, `_mps`, `_seconds`).
+
+`warnings_json` and `payload_json` preserve the warnings and complete decoded
+payload, including unknown raw values and fields outside the common columns.
+Missing/invalid scalar values are empty cells. Neither altitude datum is inferred
+from the other; `sensor_altitude_hae_m` is tag 75 and `sensor_altitude_msl_m` is
+tag 15, using the source's reported values.
+
+Output uses UTF-8, CRLF record endings, and quoted/escaped cells for embedded
+commas, quotes, and line breaks. Text identifiers that look like spreadsheet
+formulas are prefixed with an apostrophe; their original text remains in
+`payload_json`. Negative numeric values remain numeric. Import the
+`timestamp_microseconds` column as text in spreadsheet tools to avoid their
+automatic conversion losing integer precision.
+
+### GeoJSON
+
+GeoJSON writes a streaming `FeatureCollection` with one `Point` per accepted
+packet containing valid sensor coordinates. Geometry is two-dimensional
+`[longitude, latitude]`, in degrees. The properties contain the same common
+telemetry fields as CSV, plus native `warnings` and `payload` objects.
+Timestamp microseconds remain strings, and missing values are JSON `null`.
+
+HAE and MSL altitude are separate properties. MSL is never used as a GeoJSON
+third coordinate, whose reference is the WGS 84 ellipsoid in
+[RFC 7946](https://www.rfc-editor.org/rfc/rfc7946#section-3.1.1). No altitude
+conversion, interpolation, sorting, or connecting line is applied. Invalid or
+missing positions are skipped without borrowing coordinates from another packet.
+The final stderr report adds `export.features` and `export.skippedPositions`.
+
+### Output and failure behavior
+
+CSV and GeoJSON are streamed with stdout backpressure; accepted packets are
+not accumulated for the entire recording. All formats keep decoder diagnostics
+and final counters on stderr. Exit codes remain 0 for accepted packets without
+parser/transport rejections, 1 for no packets or an I/O/usage failure, and 2 for
+parser/transport failures even when some packets were recovered. Warnings and
+GeoJSON position skips alone do not change the exit status.
+
+Empty input produces a CSV header, an empty GeoJSON collection, or a summary
+with null timing and empty fields, and exits 1. An input containing only rejected
+packets exits 2. An I/O failure can leave partially written output; check the
+exit status before consuming it. A file of accepted packets with no valid
+positions produces an empty GeoJSON collection and exits 0, with all position
+skips recorded on stderr.
+
 ## Metadata-only TS export
 
 ```sh

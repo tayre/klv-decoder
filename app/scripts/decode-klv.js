@@ -5,6 +5,22 @@ const { pipeline } = require('node:stream/promises');
 const { parseArgs } = require('node:util');
 const Decoder = require('../src/klv/decoder');
 const TS = require('../src/jsmpeg/ts');
+const { createOutput } = require('./metadata-output');
+
+const help = `Usage: node scripts/decode-klv.js [options] input-file-or-stdin-dash
+
+  --format klv|ts                       Input format (default: klv)
+  --pid PID                             Required metadata PID for TS, decimal or hex
+  --output jsonl|summary|csv|geojson      Output format (default: jsonl)
+  --summary                             Shorthand for --output summary
+  --strict                              Enable strict structural validation
+  --help                                Show this help
+
+Output goes to stdout; diagnostics and counters go to stderr.
+Summary describes the selected stream; TS requires an explicit PID and supports
+188-byte transport packets carrying private PES 0xBD. GeoJSON emits sensor points.
+Exit codes: 0 decoded without rejections, 1 no packets or I/O/usage failure,
+2 rejected packets or transport errors. See docs/decoder-api.md for output details.`;
 
 const transportErrorCounters = [
   'discardedBytes', 'truncatedBytes', 'continuityErrors', 'transportErrors',
@@ -18,6 +34,8 @@ function parseOptions() {
       strict: { type: 'boolean' },
       help: { type: 'boolean' },
       format: { type: 'string', default: 'klv' },
+      output: { type: 'string' },
+      summary: { type: 'boolean' },
       pid: { type: 'string' }
     }
   });
@@ -27,6 +45,13 @@ function parseOptions() {
   }
   if (!['klv', 'ts'].includes(values.format)) {
     throw new Error('format must be klv or ts');
+  }
+  const output = values.output ?? (values.summary ? 'summary' : 'jsonl');
+  if (!['jsonl', 'summary', 'csv', 'geojson'].includes(output)) {
+    throw new Error('output must be jsonl, summary, csv or geojson');
+  }
+  if (values.summary && output !== 'summary') {
+    throw new Error('--summary cannot be combined with another output format');
   }
 
   const pid = values.pid === undefined ? null : Number(values.pid);
@@ -39,20 +64,24 @@ function parseOptions() {
   if (values.format === 'klv' && values.pid !== undefined) {
     throw new Error('--pid requires --format ts');
   }
-  return { ...values, pid, input: positionals[0] };
+  return { ...values, output, pid, input: positionals[0] };
 }
 
 async function main() {
   const options = parseOptions();
   if (options.help) {
-    console.log('node scripts/decode-klv.js [--strict] [--format klv|ts --pid PID] input-file-or-stdin-dash > packets.jsonl\nTS mode requires an explicit metadata PID and supports 188-byte TS, private PES 0xBD.');
+    console.log(help);
     return;
   }
 
-  let lines = [];
+  const output = createOutput(options);
+  let pendingOutput = [];
   const decoder = new Decoder({
     strict: options.strict,
-    onPacket: packet => lines.push(JSON.stringify(packet)),
+    onPacket: packet => {
+      const chunk = output.write(packet);
+      if (chunk) pendingOutput.push(chunk);
+    },
     onError: error => console.error(JSON.stringify(error))
   });
   const ts = options.format === 'ts' ? new TS() : null;
@@ -64,9 +93,9 @@ async function main() {
   }, options.pid);
 
   function takeOutput() {
-    const output = lines.join('\n') + '\n';
-    lines = [];
-    return output;
+    const text = pendingOutput.join('');
+    pendingOutput = [];
+    return text;
   }
 
   const input = options.input === '-'
@@ -76,18 +105,25 @@ async function main() {
   let stats;
   // Pipeline propagates backpressure and closes the input on output failure.
   await pipeline(input, async function* decode(chunks) {
+    const header = output.start();
+    if (header) yield header;
     for await (const chunk of chunks) {
       if (ts) ts.write(chunk);
       else decoder.push(chunk);
-      if (lines.length) yield takeOutput();
+      const text = takeOutput();
+      if (text) yield text;
     }
     transport = ts?.end();
     stats = decoder.end();
-    if (lines.length) yield takeOutput();
+    const text = takeOutput();
+    if (text) yield text;
+    const footer = output.end({ stats, transport });
+    if (footer) yield footer;
   }, process.stdout);
 
   console.error(JSON.stringify({
     stats,
+    ...output.diagnostics(),
     ...(transport ? { transport, pid: options.pid } : {})
   }));
   const transportFailure = transport &&
